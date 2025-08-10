@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     StyleSheet,
     Text,
@@ -12,12 +12,14 @@ import {
     FlatList,
     RefreshControl,
     Dimensions,
-    ActivityIndicator
+    ActivityIndicator,
+    Animated,
+    BackHandler
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const VendorMarketplaceScreen = ({ navigation }) => {
     const [crops, setCrops] = useState([]);
@@ -30,6 +32,11 @@ const VendorMarketplaceScreen = ({ navigation }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [userProfile, setUserProfile] = useState(null);
+    const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+
+    // Sidebar animation
+    const sidebarAnimation = useRef(new Animated.Value(-width * 0.8)).current;
+    const overlayAnimation = useRef(new Animated.Value(0)).current;
 
     // Sample data - In real app, this would come from API
     const sampleCrops = [
@@ -141,11 +148,23 @@ const VendorMarketplaceScreen = ({ navigation }) => {
     useEffect(() => {
         loadUserProfile();
         loadCrops();
-    }, []);
+
+        // Handle Android back button for sidebar
+        const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+        return () => backHandler.remove();
+    }, [isSidebarVisible]);
 
     useEffect(() => {
         filterCrops();
     }, [selectedState, searchQuery, crops]);
+
+    const handleBackPress = () => {
+        if (isSidebarVisible) {
+            closeSidebar();
+            return true;
+        }
+        return false;
+    };
 
     const loadUserProfile = async () => {
         try {
@@ -201,6 +220,98 @@ const VendorMarketplaceScreen = ({ navigation }) => {
         setFilteredCrops(filtered);
     };
 
+    const openSidebar = () => {
+        setIsSidebarVisible(true);
+        Animated.parallel([
+            Animated.timing(sidebarAnimation, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+            Animated.timing(overlayAnimation, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+            })
+        ]).start();
+    };
+
+    const closeSidebar = () => {
+        Animated.parallel([
+            Animated.timing(sidebarAnimation, {
+                toValue: -width * 0.8,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+            Animated.timing(overlayAnimation, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            })
+        ]).start(() => {
+            setIsSidebarVisible(false);
+        });
+    };
+
+    const handleSignOut = () => {
+        Alert.alert(
+            'Sign Out',
+            'क्या आप वाकई साइन आउट करना चाहते हैं?',
+            [
+                {
+                    text: 'Cancel',
+                    style: 'cancel'
+                },
+                {
+                    text: 'Sign Out',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            // Clear stored data
+                            await AsyncStorage.multiRemove([
+                                'userProfile',
+                                'userPhone',
+                                'isProfileComplete'
+                            ]);
+
+                            // Close sidebar first
+                            closeSidebar();
+
+                            // Navigate to login screen after a brief delay
+                            setTimeout(() => {
+                                navigation.replace('PhoneAuth');
+                            }, 300);
+                        } catch (error) {
+                            console.error('Sign out error:', error);
+                            Alert.alert('Error', 'Failed to sign out. Please try again.');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleUserSettings = () => {
+        closeSidebar();
+        // Navigate to settings screen
+        // navigation.navigate('UserSettings');
+        Alert.alert(
+            'User Settings',
+            'Settings screen will be implemented here. You can edit your profile, change preferences, etc.',
+            [{ text: 'OK' }]
+        );
+    };
+
+    const handleMyOrders = () => {
+        closeSidebar();
+        // navigation.navigate('MyOrders');
+        Alert.alert(
+            'My Orders',
+            'Orders screen will show your purchase history and current orders.',
+            [{ text: 'OK' }]
+        );
+    };
+
     const handleBuyPress = (crop) => {
         setSelectedCrop(crop);
         setIsPurchaseModalVisible(true);
@@ -232,10 +343,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
                 [
                     {
                         text: 'View Orders',
-                        onPress: () => {
-                            // navigation.navigate('Orders');
-                            console.log('Navigate to orders');
-                        }
+                        onPress: handleMyOrders
                     },
                     { text: 'Continue Shopping', style: 'cancel' }
                 ]
@@ -286,6 +394,113 @@ const VendorMarketplaceScreen = ({ navigation }) => {
                 <Text style={styles.buyButtonText}>🛒 BUY NOW</Text>
             </TouchableOpacity>
         </View>
+    );
+
+    const Sidebar = () => (
+        <Modal
+            visible={isSidebarVisible}
+            transparent
+            animationType="none"
+            onRequestClose={closeSidebar}
+        >
+            <View style={styles.sidebarContainer}>
+                {/* Overlay */}
+                <Animated.View
+                    style={[
+                        styles.sidebarOverlay,
+                        { opacity: overlayAnimation }
+                    ]}
+                >
+                    <TouchableOpacity
+                        style={styles.overlayTouchable}
+                        onPress={closeSidebar}
+                        activeOpacity={1}
+                    />
+                </Animated.View>
+
+                {/* Sidebar */}
+                <Animated.View
+                    style={[
+                        styles.sidebar,
+                        { transform: [{ translateX: sidebarAnimation }] }
+                    ]}
+                >
+                    {/* User Profile Section */}
+                    <View style={styles.sidebarHeader}>
+                        <View style={styles.userAvatar}>
+                            <Text style={styles.avatarText}>
+                                {userProfile?.name?.charAt(0)?.toUpperCase() || 'U'}
+                            </Text>
+                        </View>
+                        <View style={styles.userInfo}>
+                            <Text style={styles.userName}>
+                                {userProfile?.name || 'User'}
+                            </Text>
+                            <Text style={styles.userType}>
+                                {userProfile?.userType === 'vendor' ? '🏪 Vendor' : '👨‍🌾 Farmer'}
+                            </Text>
+                            <Text style={styles.userPhone}>
+                                📱 {userProfile?.contact || 'N/A'}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Menu Items */}
+                    <ScrollView style={styles.sidebarMenu} showsVerticalScrollIndicator={false}>
+                        <TouchableOpacity style={styles.menuItem} onPress={handleMyOrders}>
+                            <Text style={styles.menuIcon}>📦</Text>
+                            <View style={styles.menuTextContainer}>
+                                <Text style={styles.menuText}>My Orders</Text>
+                                <Text style={styles.menuSubtext}>View purchase history</Text>
+                            </View>
+                            <Text style={styles.menuArrow}>›</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.menuItem} onPress={handleUserSettings}>
+                            <Text style={styles.menuIcon}>⚙️</Text>
+                            <View style={styles.menuTextContainer}>
+                                <Text style={styles.menuText}>Settings</Text>
+                                <Text style={styles.menuSubtext}>Account & preferences</Text>
+                            </View>
+                            <Text style={styles.menuArrow}>›</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.menuItem} onPress={() => {
+                            closeSidebar();
+                            Alert.alert('Help & Support', 'Contact our support team for assistance.');
+                        }}>
+                            <Text style={styles.menuIcon}>❓</Text>
+                            <View style={styles.menuTextContainer}>
+                                <Text style={styles.menuText}>Help & Support</Text>
+                                <Text style={styles.menuSubtext}>Get help & contact us</Text>
+                            </View>
+                            <Text style={styles.menuArrow}>›</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.menuItem} onPress={() => {
+                            closeSidebar();
+                            Alert.alert('About Kisan Dost', 'Version 1.0.0\nYour Smart Farming Companion\n\n© 2024 Kisan Dost. All rights reserved.');
+                        }}>
+                            <Text style={styles.menuIcon}>ℹ️</Text>
+                            <View style={styles.menuTextContainer}>
+                                <Text style={styles.menuText}>About</Text>
+                                <Text style={styles.menuSubtext}>App info & version</Text>
+                            </View>
+                            <Text style={styles.menuArrow}>›</Text>
+                        </TouchableOpacity>
+                    </ScrollView>
+
+                    {/* Sign Out Button */}
+                    <View style={styles.sidebarFooter}>
+                        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+                            <Text style={styles.signOutIcon}>🚪</Text>
+                            <Text style={styles.signOutText}>Sign Out</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.appVersion}>Kisan Dost v1.0.0</Text>
+                    </View>
+                </Animated.View>
+            </View>
+        </Modal>
     );
 
     const FilterModal = () => (
@@ -399,8 +614,14 @@ const VendorMarketplaceScreen = ({ navigation }) => {
 
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Crop Marketplace</Text>
-                <Text style={styles.headerSubtitle}>फसल बाज़ार</Text>
+                <TouchableOpacity style={styles.menuButton} onPress={openSidebar}>
+                    <Text style={styles.menuButtonText}>☰</Text>
+                </TouchableOpacity>
+                <View style={styles.headerContent}>
+                    <Text style={styles.headerTitle}>Crop Marketplace</Text>
+                    <Text style={styles.headerSubtitle}>फसल बाज़ार</Text>
+                </View>
+                <View style={styles.headerRight} />
             </View>
 
             {/* Search and Filter */}
@@ -473,6 +694,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
             )}
 
             {/* Modals */}
+            <Sidebar />
             <FilterModal />
             <PurchaseModal />
         </SafeAreaView>
@@ -490,6 +712,25 @@ const styles = StyleSheet.create({
         backgroundColor: '#2E7D32',
         paddingHorizontal: 20,
         paddingVertical: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    menuButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    menuButtonText: {
+        fontSize: 20,
+        color: '#fff',
+        fontWeight: 'bold',
+    },
+    headerContent: {
+        flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
@@ -501,6 +742,9 @@ const styles = StyleSheet.create({
     headerSubtitle: {
         fontSize: 16,
         color: '#C8E6C9',
+    },
+    headerRight: {
+        width: 40,
     },
     searchContainer: {
         flexDirection: 'row',
@@ -628,12 +872,12 @@ const styles = StyleSheet.create({
     qualityBadge: {
         alignSelf: 'flex-start',
         backgroundColor: '#E8F5E8',
-        color: '#2E7D32',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
         fontSize: 12,
         fontWeight: '600',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 10,
+        color: '#2E7D32',
     },
     priceContainer: {
         alignItems: 'flex-end',
@@ -641,12 +885,12 @@ const styles = StyleSheet.create({
     price: {
         fontSize: 22,
         fontWeight: 'bold',
-        color: '#F44336',
-        marginBottom: 2,
+        color: '#FF6F00',
     },
     unit: {
         fontSize: 12,
         color: '#666',
+        marginTop: 2,
     },
     farmerInfo: {
         flexDirection: 'row',
@@ -656,60 +900,62 @@ const styles = StyleSheet.create({
     farmerLabel: {
         fontSize: 14,
         color: '#666',
-        marginRight: 4,
+        marginRight: 8,
     },
     farmerName: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#333',
+        color: '#2E7D32',
+        flex: 1,
     },
     locationInfo: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 8,
+        marginBottom: 12,
     },
     locationText: {
         fontSize: 14,
         color: '#666',
+        flex: 1,
     },
     quantityText: {
         fontSize: 14,
-        color: '#666',
+        color: '#4CAF50',
+        fontWeight: '600',
     },
     description: {
         fontSize: 14,
-        color: '#555',
-        lineHeight: 18,
-        marginBottom: 8,
-    },
-    metaInfo: {
+        color: '#666',
+        lineHeight: 20,
         marginBottom: 12,
     },
+    metaInfo: {
+        marginBottom: 16,
+    },
     harvestDate: {
-        fontSize: 12,
+        fontSize: 13,
         color: '#999',
     },
     buyButton: {
         backgroundColor: '#4CAF50',
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        borderRadius: 25,
+        borderRadius: 12,
+        paddingVertical: 14,
         alignItems: 'center',
         elevation: 2,
     },
     buyButtonText: {
-        color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
+        color: '#fff',
     },
     emptyContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 40,
+        paddingVertical: 50,
     },
     emptyText: {
-        fontSize: 18,
+        fontSize: 24,
         color: '#666',
         marginBottom: 8,
     },
@@ -717,38 +963,167 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#999',
         textAlign: 'center',
+        paddingHorizontal: 40,
     },
+    // Sidebar Styles
+    sidebarContainer: {
+        flex: 1,
+        flexDirection: 'row',
+    },
+    sidebarOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    overlayTouchable: {
+        flex: 1,
+    },
+    sidebar: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: width * 0.8,
+        backgroundColor: '#fff',
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 2, height: 0 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+    },
+    sidebarHeader: {
+        backgroundColor: '#2E7D32',
+        padding: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    userAvatar: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#4CAF50',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    avatarText: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#fff',
+    },
+    userInfo: {
+        flex: 1,
+    },
+    userName: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#fff',
+        marginBottom: 4,
+    },
+    userType: {
+        fontSize: 14,
+        color: '#C8E6C9',
+        marginBottom: 2,
+    },
+    userPhone: {
+        fontSize: 12,
+        color: '#C8E6C9',
+    },
+    sidebarMenu: {
+        flex: 1,
+        paddingTop: 20,
+    },
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    menuIcon: {
+        fontSize: 24,
+        width: 40,
+        textAlign: 'center',
+        marginRight: 16,
+    },
+    menuTextContainer: {
+        flex: 1,
+    },
+    menuText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 2,
+    },
+    menuSubtext: {
+        fontSize: 12,
+        color: '#666',
+    },
+    menuArrow: {
+        fontSize: 20,
+        color: '#ccc',
+    },
+    sidebarFooter: {
+        padding: 20,
+        borderTopWidth: 1,
+        borderTopColor: '#F0F0F0',
+    },
+    signOutButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFE5E5',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        marginBottom: 12,
+    },
+    signOutIcon: {
+        fontSize: 18,
+        marginRight: 12,
+    },
+    signOutText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#D32F2F',
+    },
+    appVersion: {
+        fontSize: 12,
+        color: '#999',
+        textAlign: 'center',
+    },
+    // Modal Styles
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
+        padding: 20,
     },
     filterModal: {
         backgroundColor: '#fff',
         borderRadius: 16,
         padding: 20,
-        width: width * 0.85,
-        maxHeight: '70%',
+        width: '100%',
+        maxHeight: '80%',
     },
     modalTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: '#2E7D32',
-        textAlign: 'center',
+        color: '#333',
         marginBottom: 16,
+        textAlign: 'center',
     },
     stateList: {
-        maxHeight: 300,
+        maxHeight: 400,
     },
     stateItem: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        justifyContent: 'space-between',
         paddingVertical: 12,
         paddingHorizontal: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        borderBottomColor: '#F0F0F0',
     },
     selectedState: {
         backgroundColor: '#E8F5E8',
@@ -762,35 +1137,35 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     checkmark: {
+        fontSize: 18,
         color: '#4CAF50',
-        fontSize: 16,
         fontWeight: 'bold',
     },
     closeButton: {
         backgroundColor: '#4CAF50',
-        paddingVertical: 12,
-        borderRadius: 8,
+        borderRadius: 12,
+        paddingVertical: 14,
         alignItems: 'center',
         marginTop: 16,
     },
     closeButtonText: {
-        color: '#fff',
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: 'bold',
+        color: '#fff',
     },
     purchaseModal: {
         backgroundColor: '#fff',
         borderRadius: 16,
         padding: 24,
-        width: width * 0.9,
-        maxHeight: '80%',
+        width: '100%',
+        maxWidth: 400,
     },
     purchaseTitle: {
         fontSize: 22,
         fontWeight: 'bold',
         color: '#2E7D32',
         textAlign: 'center',
-        marginBottom: 4,
+        marginBottom: 8,
     },
     purchaseSubtitle: {
         fontSize: 16,
@@ -799,7 +1174,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     purchaseDetails: {
-        backgroundColor: '#F9F9F9',
+        backgroundColor: '#F8F8F8',
         borderRadius: 12,
         padding: 16,
         marginBottom: 16,
@@ -811,14 +1186,14 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     purchaseLabel: {
-        fontWeight: '600',
+        fontWeight: 'bold',
         color: '#2E7D32',
     },
     purchaseNote: {
         fontSize: 13,
         color: '#666',
-        fontStyle: 'italic',
         textAlign: 'center',
+        fontStyle: 'italic',
         marginBottom: 24,
         lineHeight: 18,
     },
@@ -828,26 +1203,26 @@ const styles = StyleSheet.create({
     },
     cancelButton: {
         flex: 1,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: '#F5F5F5',
+        borderRadius: 12,
         paddingVertical: 14,
-        borderRadius: 8,
         alignItems: 'center',
     },
     cancelButtonText: {
-        color: '#666',
         fontSize: 16,
         fontWeight: '600',
+        color: '#666',
     },
     confirmButton: {
         flex: 1,
         backgroundColor: '#4CAF50',
+        borderRadius: 12,
         paddingVertical: 14,
-        borderRadius: 8,
         alignItems: 'center',
     },
     confirmButtonText: {
-        color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
+        color: '#fff',
     },
 });

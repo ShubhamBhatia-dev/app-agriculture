@@ -172,7 +172,7 @@ const UserSettings = ({ navigation }) => {
                                 value={userDetails.nameEnglish}
                                 onChangeText={(text) => handleInputChange('nameEnglish', text)}
                                 editable={isEditing}
-                                placeholder="Enter your name"
+                                placeholder="your name"
                                 placeholderTextColor="#999"
                             />
                         </View>

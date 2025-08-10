@@ -15,15 +15,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { NETWORK } from './constants';
 
 const { width, height } = Dimensions.get('window');
 
+
 const PhoneAuthScreen = ({ navigation }) => {
     const [phoneNumber, setPhoneNumber] = useState('');
+    const [otp, setOTP] = useState(['', '', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [currentStep, setCurrentStep] = useState('phone'); // 'phone' or 'otp'
+    const [generatedOTP, setGeneratedOTP] = useState('');
+    const [timer, setTimer] = useState(0);
+    const [canResend, setCanResend] = useState(true);
+
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(50)).current;
+    const otpInputRefs = useRef([]);
 
     useEffect(() => {
         // Entrance animation
@@ -44,6 +54,18 @@ const PhoneAuthScreen = ({ navigation }) => {
         checkExistingSession();
     }, []);
 
+    useEffect(() => {
+        let interval = null;
+        if (timer > 0) {
+            interval = setInterval(() => {
+                setTimer(timer => timer - 1);
+            }, 1000);
+        } else if (timer === 0 && !canResend) {
+            setCanResend(true);
+        }
+        return () => clearInterval(interval);
+    }, [timer, canResend]);
+
     const checkExistingSession = async () => {
         try {
             const existingUser = await AsyncStorage.getItem('userProfile');
@@ -53,12 +75,46 @@ const PhoneAuthScreen = ({ navigation }) => {
                 const userProfile = JSON.parse(existingUser);
                 // Auto-login user
                 setTimeout(() => {
-                    navigation.replace('Home', { userProfile });
+                    if (userProfile.userType === 'farmer') {
+                        navigation.replace('Home', { userProfile });
+                    } else if (userProfile.userType === 'vendor') {
+                        navigation.replace('Vendor', { userProfile });
+                    }
+
                 }, 1000);
             }
         } catch (error) {
             console.error('Error checking existing session:', error);
         }
+    };
+
+
+    // Simulate sending OTP via SMS
+    const sendOTP = async (phoneNumber) => {
+        console.log(`${NETWORK}app/sms-handler/`)
+        const otp = await axios.post(`${NETWORK}app/sms-handler/`, { "sender": phoneNumber })
+            .then(response => {
+                console.log(response);
+                return response.data.code;
+            })
+            .catch(error => {
+                console.error('Error sending OTP:', error);
+                throw new Error('Failed to send OTP');
+            });
+        console.log(`Generated OTP: ${otp}`);
+        setGeneratedOTP(otp);
+
+        // In real app, you would call your SMS service API here
+        console.log(`OTP sent to ${phoneNumber}: ${otp}`);
+
+        // For development, show OTP in alert (remove in production)
+        Alert.alert(
+            'OTP Sent',
+            `OTP sent to +91${phoneNumber}\n\n`,
+            [{ text: 'OK' }]
+        );
+
+        return true;
     };
 
     // Simulate API call to check if user exists in database
@@ -101,21 +157,33 @@ const PhoneAuthScreen = ({ navigation }) => {
                 pincode: '250609',
                 district: 'Baghpat',
                 country: 'India',
-                isProfileComplete: false, // Incomplete profile
+                isProfileComplete: false,
                 registrationDate: '2024-01-15T00:00:00.000Z'
             }
         ];
 
+
         // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        const user = await axios.post(`${NETWORK}app/phone-verify/`, { "sender": phoneNumber })
+            .then(response => {
+                console.log(response);
+                return response.data.user;
+            })
+            .catch(error => {
+                console.error('Error sending OTP:', error);
+                throw new Error('Failed to send OTP');
+            });
 
         // Find user in mock database
-        const user = mockDatabase.find(u => u.phoneNumber === phone);
 
-        if (user) {
+        if (user.data.success) {
             return {
+
+
+
+
                 exists: true,
-                userData: user
+                userData: user.data.data
             };
         } else {
             return {
@@ -146,7 +214,84 @@ const PhoneAuthScreen = ({ navigation }) => {
         setIsLoading(true);
 
         try {
-            // Check if user exists in database
+            // Send OTP
+            await sendOTP(phoneNumber);
+
+            // Switch to OTP verification step
+            setCurrentStep('otp');
+            setTimer(300); // 300 seconds timer
+            setCanResend(false);
+
+            // Focus first OTP input
+            setTimeout(() => {
+                otpInputRefs.current[0]?.focus();
+            }, 500);
+
+        } catch (error) {
+            console.error('Error sending OTP:', error);
+            Alert.alert(
+                'Error',
+                'Failed to send OTP. Please try again.',
+                [{ text: 'OK' }]
+            );
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleOTPChange = (value, index) => {
+        // Only allow numbers
+        const numericValue = value.replace(/[^0-9]/g, '');
+
+        if (numericValue.length <= 1) {
+            const newOTP = [...otp];
+            newOTP[index] = numericValue;
+            setOTP(newOTP);
+
+            // Auto-focus next input
+            if (numericValue && index < 5) {
+                otpInputRefs.current[index + 1]?.focus();
+            }
+
+            // Clear error when user starts typing
+            if (error) {
+                setError('');
+            }
+
+            // Auto-verify when all 6 digits are entered
+            if (index === 5 && numericValue) {
+                setTimeout(() => {
+                    handleOTPVerify();
+                }, 100);
+            }
+        }
+    };
+
+    const handleOTPKeyPress = (e, index) => {
+        if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
+            // Focus previous input on backspace
+            otpInputRefs.current[index - 1]?.focus();
+        }
+    };
+
+    const handleOTPVerify = async () => {
+        const enteredOTP = otp.join('');
+        console.log(`Entered OTP: ${enteredOTP}`);
+        if (enteredOTP.length !== 6) {
+            setError('Please enter complete 6-digit OTP');
+            return;
+        }
+
+        if (enteredOTP !== generatedOTP) {
+            setError('Invalid OTP. Please try again.');
+            return;
+        }
+
+        setError('');
+        setIsLoading(true);
+
+        try {
+            // OTP verified, now check user in database
             const response = await checkUserInDatabase(phoneNumber);
 
             if (response.exists) {
@@ -209,18 +354,47 @@ const PhoneAuthScreen = ({ navigation }) => {
                 );
             }
         } catch (error) {
-            console.error('Error checking user:', error);
+            console.error('Error verifying user:', error);
             Alert.alert(
                 'Connection Error',
                 'Unable to connect to server. Please check your internet connection and try again.',
                 [
-                    { text: 'Retry', onPress: handlePhoneSubmit },
+                    { text: 'Retry', onPress: handleOTPVerify },
                     { text: 'Cancel', style: 'cancel' }
                 ]
             );
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleResendOTP = async () => {
+        if (!canResend) return;
+
+        setIsLoading(true);
+        try {
+            await sendOTP(phoneNumber);
+            setTimer(30);
+            setCanResend(false);
+            setOTP(['', '', '', '', '', '']);
+            setError('');
+
+            // Focus first input
+            otpInputRefs.current[0]?.focus();
+        } catch (error) {
+            Alert.alert('Error', 'Failed to resend OTP. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleBackToPhone = () => {
+        setCurrentStep('phone');
+        setOTP(['', '', '', '', '', '']);
+        setError('');
+        setTimer(0);
+        setCanResend(true);
+        setGeneratedOTP('');
     };
 
     const handlePhoneChange = (text) => {
@@ -234,23 +408,127 @@ const PhoneAuthScreen = ({ navigation }) => {
         }
     };
 
-    const QuickLoginButton = ({ phone, name, onPress }) => (
-        <TouchableOpacity style={styles.quickLoginButton} onPress={() => onPress(phone)}>
-            <View style={styles.quickLoginInfo}>
-                <Text style={styles.quickLoginPhone}>📱 {phone}</Text>
-                <Text style={styles.quickLoginName}>{name}</Text>
+    const renderPhoneStep = () => (
+        <View style={styles.phoneSection}>
+            <View style={styles.iconContainer}>
+                <Text style={styles.phoneIcon}>📱</Text>
             </View>
-            <Text style={styles.quickLoginArrow}>→</Text>
-        </TouchableOpacity>
+
+            <Text style={styles.inputLabel}>Enter Your Mobile Number</Text>
+            <Text style={styles.inputSubLabel}>अपना मोबाइल नंबर डालें</Text>
+
+            <View style={styles.phoneInputContainer}>
+                <View style={styles.countryCode}>
+                    <Text style={styles.flagEmoji}>🇮🇳</Text>
+                    <Text style={styles.countryCodeText}>+91</Text>
+                </View>
+                <TextInput
+                    style={[styles.phoneInput, error && styles.inputError]}
+                    value={phoneNumber}
+                    onChangeText={handlePhoneChange}
+                    placeholder="Enter 10-digit number"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                    maxLength={10}
+                    returnKeyType="done"
+                    onSubmitEditing={handlePhoneSubmit}
+                />
+            </View>
+
+            {error ? (
+                <Text style={styles.errorText}>{error}</Text>
+            ) : null}
+
+            <TouchableOpacity
+                style={[styles.continueButton, isLoading && styles.disabledButton]}
+                onPress={handlePhoneSubmit}
+                disabled={isLoading}
+            >
+                {isLoading ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color="#fff" />
+                        <Text style={styles.loadingText}>Sending OTP...</Text>
+                    </View>
+                ) : (
+                    <Text style={styles.continueButtonText}>Send OTP</Text>
+                )}
+            </TouchableOpacity>
+        </View>
     );
 
-    const handleQuickLogin = (phone) => {
-        setPhoneNumber(phone);
-        // Auto-submit after setting phone number
-        setTimeout(() => {
-            handlePhoneSubmit();
-        }, 500);
-    };
+    const renderOTPStep = () => (
+        <View style={styles.otpSection}>
+            <View style={styles.iconContainer}>
+                <Text style={styles.otpIcon}>🔐</Text>
+            </View>
+
+            <Text style={styles.inputLabel}>Enter Verification Code</Text>
+            <Text style={styles.inputSubLabel}>
+                OTP sent to +91{phoneNumber}
+            </Text>
+            <Text style={styles.changeNumberText}>
+                Wrong number?
+                <Text style={styles.changeNumberLink} onPress={handleBackToPhone}> Change</Text>
+            </Text>
+
+            <View style={styles.otpContainer}>
+                {otp.map((digit, index) => (
+                    <TextInput
+                        key={index}
+                        ref={(ref) => otpInputRefs.current[index] = ref}
+                        style={[
+                            styles.otpInput,
+                            digit && styles.otpInputFilled,
+                            error && styles.inputError
+                        ]}
+                        value={digit}
+                        onChangeText={(value) => handleOTPChange(value, index)}
+                        onKeyPress={(e) => handleOTPKeyPress(e, index)}
+                        keyboardType="numeric"
+                        maxLength={1}
+                        textAlign="center"
+                    />
+                ))}
+            </View>
+
+            {error ? (
+                <Text style={styles.errorText}>{error}</Text>
+            ) : null}
+
+            <View style={styles.timerContainer}>
+                {timer > 0 ? (
+                    <Text style={styles.timerText}>
+                        Resend OTP in {timer} seconds
+                    </Text>
+                ) : (
+                    <TouchableOpacity
+                        style={styles.resendButton}
+                        onPress={handleResendOTP}
+                        disabled={!canResend || isLoading}
+                    >
+                        <Text style={styles.resendButtonText}>
+                            {isLoading ? 'Sending...' : 'Resend OTP'}
+                        </Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+
+            <TouchableOpacity
+                style={[styles.continueButton, isLoading && styles.disabledButton]}
+                onPress={handleOTPVerify}
+                disabled={isLoading}
+            >
+                {isLoading ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color="#fff" />
+                        <Text style={styles.loadingText}>Verifying...</Text>
+                    </View>
+                ) : (
+                    <Text style={styles.continueButtonText}>Verify & Continue</Text>
+                )}
+            </TouchableOpacity>
+        </View>
+    );
 
     return (
         <SafeAreaView style={styles.container}>
@@ -277,65 +555,21 @@ const PhoneAuthScreen = ({ navigation }) => {
                         <Text style={styles.tagline}>Your Smart Farming Companion</Text>
                     </View>
 
-                    {/* Phone Input Section */}
-                    <View style={styles.phoneSection}>
-                        <View style={styles.iconContainer}>
-                            <Text style={styles.phoneIcon}>📱</Text>
-                        </View>
+                    {/* Phone or OTP Step */}
+                    {currentStep === 'phone' ? renderPhoneStep() : renderOTPStep()}
 
-                        <Text style={styles.inputLabel}>Enter Your Mobile Number</Text>
-                        <Text style={styles.inputSubLabel}>अपना मोबाइल नंबर डालें</Text>
-
-                        <View style={styles.phoneInputContainer}>
-                            <View style={styles.countryCode}>
-                                <Text style={styles.flagEmoji}>🇮🇳</Text>
-                                <Text style={styles.countryCodeText}>+91</Text>
+                    {/* Info Section - Only show on phone step */}
+                    {currentStep === 'phone' && (
+                        <View style={styles.infoSection}>
+                            <Text style={styles.infoTitle}>🌱 Why Kisan Dost?</Text>
+                            <View style={styles.featuresList}>
+                                <Text style={styles.featureItem}>• Get expert farming advice in your language</Text>
+                                <Text style={styles.featureItem}>• Real-time weather and market updates</Text>
+                                <Text style={styles.featureItem}>• Connect with farmers and vendors</Text>
+                                <Text style={styles.featureItem}>• Government schemes information</Text>
                             </View>
-                            <TextInput
-                                style={[styles.phoneInput, error && styles.inputError]}
-                                value={phoneNumber}
-                                onChangeText={handlePhoneChange}
-                                placeholder="Enter 10-digit number"
-                                placeholderTextColor="#999"
-                                keyboardType="numeric"
-                                maxLength={10}
-                                returnKeyType="done"
-                                onSubmitEditing={handlePhoneSubmit}
-                            />
                         </View>
-
-                        {error ? (
-                            <Text style={styles.errorText}>{error}</Text>
-                        ) : null}
-
-                        <TouchableOpacity
-                            style={[styles.continueButton, isLoading && styles.disabledButton]}
-                            onPress={handlePhoneSubmit}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? (
-                                <View style={styles.loadingContainer}>
-                                    <ActivityIndicator size="small" color="#fff" />
-                                    <Text style={styles.loadingText}>Checking...</Text>
-                                </View>
-                            ) : (
-                                <Text style={styles.continueButtonText}>Continue</Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-
-
-
-                    {/* Info Section */}
-                    <View style={styles.infoSection}>
-                        <Text style={styles.infoTitle}>🌱 Why Kisan Dost?</Text>
-                        <View style={styles.featuresList}>
-                            <Text style={styles.featureItem}>• Get expert farming advice in your language</Text>
-                            <Text style={styles.featureItem}>• Real-time weather and market updates</Text>
-                            <Text style={styles.featureItem}>• Connect with farmers and vendors</Text>
-                            <Text style={styles.featureItem}>• Government schemes information</Text>
-                        </View>
-                    </View>
+                    )}
 
                     {/* Privacy Notice */}
                     <View style={styles.privacySection}>
@@ -400,11 +634,25 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 3.84,
     },
+    otpSection: {
+        backgroundColor: '#fff',
+        borderRadius: 20,
+        padding: 24,
+        marginBottom: 20,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3.84,
+    },
     iconContainer: {
         alignItems: 'center',
         marginBottom: 16,
     },
     phoneIcon: {
+        fontSize: 48,
+    },
+    otpIcon: {
         fontSize: 48,
     },
     inputLabel: {
@@ -418,7 +666,17 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#4CAF50',
         textAlign: 'center',
+        marginBottom: 8,
+    },
+    changeNumberText: {
+        fontSize: 12,
+        color: '#666',
+        textAlign: 'center',
         marginBottom: 20,
+    },
+    changeNumberLink: {
+        color: '#4CAF50',
+        fontWeight: '600',
     },
     phoneInputContainer: {
         flexDirection: 'row',
@@ -427,6 +685,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         overflow: 'hidden',
         marginBottom: 16,
+        marginTop: 12,
     },
     countryCode: {
         flexDirection: 'row',
@@ -454,6 +713,27 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         backgroundColor: '#fff',
     },
+    otpContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+        marginTop: 12,
+    },
+    otpInput: {
+        width: 45,
+        height: 55,
+        borderWidth: 2,
+        borderColor: '#ddd',
+        borderRadius: 12,
+        fontSize: 20,
+        fontWeight: 'bold',
+        backgroundColor: '#fff',
+        color: '#333',
+    },
+    otpInputFilled: {
+        borderColor: '#4CAF50',
+        backgroundColor: '#F1F8E9',
+    },
     inputError: {
         borderColor: '#F44336',
     },
@@ -462,6 +742,23 @@ const styles = StyleSheet.create({
         fontSize: 14,
         textAlign: 'center',
         marginBottom: 16,
+    },
+    timerContainer: {
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    timerText: {
+        fontSize: 14,
+        color: '#666',
+    },
+    resendButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+    },
+    resendButtonText: {
+        fontSize: 14,
+        color: '#4CAF50',
+        fontWeight: '600',
     },
     continueButton: {
         backgroundColor: '#4CAF50',
@@ -490,58 +787,6 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         marginLeft: 8,
-    },
-    quickLoginSection: {
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 20,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2.22,
-    },
-    quickLoginTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#2E7D32',
-        textAlign: 'center',
-        marginBottom: 4,
-    },
-    quickLoginSubtitle: {
-        fontSize: 12,
-        color: '#666',
-        textAlign: 'center',
-        marginBottom: 16,
-    },
-    quickLoginButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#F9F9F9',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 8,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-    },
-    quickLoginInfo: {
-        flex: 1,
-    },
-    quickLoginPhone: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#2E7D32',
-        marginBottom: 4,
-    },
-    quickLoginName: {
-        fontSize: 14,
-        color: '#666',
-    },
-    quickLoginArrow: {
-        fontSize: 18,
-        color: '#4CAF50',
-        fontWeight: 'bold',
     },
     infoSection: {
         backgroundColor: '#E8F5E8',
