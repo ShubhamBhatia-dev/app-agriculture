@@ -1,0 +1,8 @@
+reply_text = (
+    f"Thank you! Your address has been saved as:\n"
+    f"State: {result['state']}\n"
+    f"District: {result['district']}\n"
+    f"City: {result['city']}\n"
+    f"Village: {result['village']}\n"
+    f"Pincode: {result['pincode']}"
+)
