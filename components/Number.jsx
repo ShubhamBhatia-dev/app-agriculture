@@ -20,23 +20,37 @@ import { NETWORK } from './constants';
 
 const { width, height } = Dimensions.get('window');
 
-
 const PhoneAuthScreen = ({ navigation }) => {
+    // States
     const [phoneNumber, setPhoneNumber] = useState('');
     const [otp, setOTP] = useState(['', '', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [currentStep, setCurrentStep] = useState('phone'); // 'phone' or 'otp'
-    const [generatedOTP, setGeneratedOTP] = useState('');
+    const [serverOTP, setServerOTP] = useState('');
     const [timer, setTimer] = useState(0);
-    const [canResend, setCanResend] = useState(true);
 
+    // Refs and animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(50)).current;
     const otpInputRefs = useRef([]);
 
+    // Initialize component
     useEffect(() => {
-        // Entrance animation
+        startAnimations();
+        checkExistingSession();
+    }, []);
+
+    // Timer effect
+    useEffect(() => {
+        if (timer > 0) {
+            const interval = setInterval(() => setTimer(t => t - 1), 1000);
+            return () => clearInterval(interval);
+        }
+    }, [timer]);
+
+    // Animations
+    const startAnimations = () => {
         Animated.parallel([
             Animated.timing(fadeAnim, {
                 toValue: 1,
@@ -49,163 +63,72 @@ const PhoneAuthScreen = ({ navigation }) => {
                 useNativeDriver: true,
             })
         ]).start();
+    };
 
-        // Check if user is already logged in
-        checkExistingSession();
-    }, []);
-
-    useEffect(() => {
-        let interval = null;
-        if (timer > 0) {
-            interval = setInterval(() => {
-                setTimer(timer => timer - 1);
-            }, 1000);
-        } else if (timer === 0 && !canResend) {
-            setCanResend(true);
-        }
-        return () => clearInterval(interval);
-    }, [timer, canResend]);
-
+    // Check if user already logged in
     const checkExistingSession = async () => {
         try {
             const existingUser = await AsyncStorage.getItem('userProfile');
-            const isProfileComplete = await AsyncStorage.getItem('isProfileComplete');
 
-            if (existingUser && isProfileComplete === 'true') {
+            if (existingUser) {
                 const userProfile = JSON.parse(existingUser);
-                // Auto-login user
                 setTimeout(() => {
-                    if (userProfile.userType === 'farmer') {
-                        navigation.replace('Home', { userProfile });
-                    } else if (userProfile.userType === 'vendor') {
-                        navigation.replace('Vendor', { userProfile });
-                    }
-
+                    const screen = userProfile.userType === 'farmer' ? 'Home' : 'Vendor';
+                    navigation.replace(screen, { userProfile });
                 }, 1000);
             }
         } catch (error) {
-            console.error('Error checking existing session:', error);
+            console.error('Session check error:', error);
         }
     };
 
+    // Validate phone number
+    const isValidPhone = (phone) => /^[6-9]\d{9}$/.test(phone);
 
-    // Simulate sending OTP via SMS
-    const sendOTP = async (phoneNumber) => {
-        console.log(`${NETWORK}app/sms-handler/`)
-        const otp = await axios.post(`${NETWORK}app/sms-handler/`, { "sender": phoneNumber })
-            .then(response => {
-                console.log(response);
-                return response.data.code;
-            })
-            .catch(error => {
-                console.error('Error sending OTP:', error);
-                throw new Error('Failed to send OTP');
+    // Send OTP to phone
+    const sendOTP = async () => {
+        try {
+            const response = await axios.post(`${NETWORK}app/sms-handler/`, {
+                sender: phoneNumber
             });
-        console.log(`Generated OTP: ${otp}`);
-        setGeneratedOTP(otp);
+            setServerOTP(response.data.code);
+            console.log('OTP sent:', response.data.code);
+            // Show OTP in development (remove in production)
+            Alert.alert('OTP Sent', `OTP sent to +91${phoneNumber}`);
 
-        // In real app, you would call your SMS service API here
-        console.log(`OTP sent to ${phoneNumber}: ${otp}`);
-
-        // For development, show OTP in alert (remove in production)
-        Alert.alert(
-            'OTP Sent',
-            `OTP sent to +91${phoneNumber}\n\n`,
-            [{ text: 'OK' }]
-        );
-
-        return true;
+            return true;
+        } catch (error) {
+            console.error('Send OTP error:', error);
+            throw new Error('Failed to send OTP');
+        }
     };
 
-    // Simulate API call to check if user exists in database
-    const checkUserInDatabase = async (phone) => {
-        // Mock database with some sample users
-        const mockDatabase = [
-            {
-                phoneNumber: '9876543210',
-                userType: 'farmer',
-                name: 'Rajesh Kumar',
-                address: 'Village Khatauli, Muzaffarnagar',
-                city: 'Muzaffarnagar',
-                state: 'Uttar Pradesh',
-                pincode: '251201',
-                district: 'Muzaffarnagar',
-                country: 'India',
-                isProfileComplete: true,
-                registrationDate: '2024-01-10T00:00:00.000Z'
-            },
-            {
-                phoneNumber: '9876543211',
-                userType: 'vendor',
-                name: 'Suresh Patel',
-                address: 'Shop No. 45, Grain Market',
-                city: 'Karnal',
-                state: 'Haryana',
-                pincode: '132001',
-                district: 'Karnal',
-                country: 'India',
-                isProfileComplete: true,
-                registrationDate: '2024-01-05T00:00:00.000Z'
-            },
-            {
-                phoneNumber: '9876543212',
-                userType: 'farmer',
-                name: 'Amit Singh',
-                address: 'Khasra No. 123, Village Baghpat',
-                city: 'Baghpat',
-                state: 'Uttar Pradesh',
-                pincode: '250609',
-                district: 'Baghpat',
-                country: 'India',
-                isProfileComplete: false,
-                registrationDate: '2024-01-15T00:00:00.000Z'
+    // Check if user exists in database
+    const checkUserExists = async () => {
+        try {
+            const response = await axios.post(`${NETWORK}app/phone-data/`, {
+                sender: phoneNumber
+            });
+
+            if (response.data.success === false) {
+                return { exists: false, userData: null };
+            } else {
+                return { exists: true, userData: response.data.data };
             }
-        ];
-
-
-        // Simulate API delay
-        const user = await axios.post(`${NETWORK}app/phone-verify/`, { "sender": phoneNumber })
-            .then(response => {
-                console.log(response);
-                return response.data.user;
-            })
-            .catch(error => {
-                console.error('Error sending OTP:', error);
-                throw new Error('Failed to send OTP');
-            });
-
-        // Find user in mock database
-
-        if (user.data.success) {
-            return {
-
-
-
-
-                exists: true,
-                userData: user.data.data
-            };
-        } else {
-            return {
-                exists: false,
-                userData: null
-            };
+        } catch (error) {
+            console.error('User check error:', error);
+            throw new Error('Failed to check user');
         }
     };
 
-    const validatePhoneNumber = (phone) => {
-        // Indian mobile number validation
-        const phoneRegex = /^[6-9]\d{9}$/;
-        return phoneRegex.test(phone);
-    };
-
+    // Handle phone number submission
     const handlePhoneSubmit = async () => {
+        // Validation
         if (!phoneNumber.trim()) {
             setError('Please enter your phone number');
             return;
         }
-
-        if (!validatePhoneNumber(phoneNumber)) {
+        if (!isValidPhone(phoneNumber)) {
             setError('Please enter a valid 10-digit mobile number');
             return;
         }
@@ -214,33 +137,21 @@ const PhoneAuthScreen = ({ navigation }) => {
         setIsLoading(true);
 
         try {
-            // Send OTP
-            await sendOTP(phoneNumber);
-
-            // Switch to OTP verification step
+            await sendOTP();
             setCurrentStep('otp');
-            setTimer(300); // 300 seconds timer
-            setCanResend(false);
+            setTimer(300); // 5 minutes
 
             // Focus first OTP input
-            setTimeout(() => {
-                otpInputRefs.current[0]?.focus();
-            }, 500);
-
+            setTimeout(() => otpInputRefs.current[0]?.focus(), 500);
         } catch (error) {
-            console.error('Error sending OTP:', error);
-            Alert.alert(
-                'Error',
-                'Failed to send OTP. Please try again.',
-                [{ text: 'OK' }]
-            );
+            Alert.alert('Error', 'Failed to send OTP. Please try again.');
         } finally {
             setIsLoading(false);
         }
     };
 
+    // Handle OTP input change
     const handleOTPChange = (value, index) => {
-        // Only allow numbers
         const numericValue = value.replace(/[^0-9]/g, '');
 
         if (numericValue.length <= 1) {
@@ -253,111 +164,81 @@ const PhoneAuthScreen = ({ navigation }) => {
                 otpInputRefs.current[index + 1]?.focus();
             }
 
-            // Clear error when user starts typing
-            if (error) {
-                setError('');
-            }
+            // Clear error
+            if (error) setError('');
 
-            // Auto-verify when all 6 digits are entered
+            // Auto-verify when complete
             if (index === 5 && numericValue) {
-                setTimeout(() => {
-                    handleOTPVerify();
-                }, 100);
+                setTimeout(handleOTPVerify, 100);
             }
         }
     };
 
+    // Handle backspace in OTP
     const handleOTPKeyPress = (e, index) => {
         if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-            // Focus previous input on backspace
             otpInputRefs.current[index - 1]?.focus();
         }
     };
 
+    // Verify OTP and process user
     const handleOTPVerify = async () => {
         const enteredOTP = otp.join('');
-        console.log(`Entered OTP: ${enteredOTP}`);
+
+        // Validation
         if (enteredOTP.length !== 6) {
             setError('Please enter complete 6-digit OTP');
             return;
         }
-
-        if (enteredOTP !== generatedOTP) {
+        if (enteredOTP !== serverOTP) {
             setError('Invalid OTP. Please try again.');
             return;
         }
 
         setError('');
         setIsLoading(true);
+        const phone = phoneNumber.trim();
+        console.log('phoneNumber:', phone);
 
         try {
-            // OTP verified, now check user in database
-            const response = await checkUserInDatabase(phoneNumber);
+            // Save phone number
+            await AsyncStorage.setItem('userPhone', phone);
+            
 
-            if (response.exists) {
-                // User exists in database
-                const userData = response.userData;
+            // Check if user exists
+            const { exists, userData } = await checkUserExists();
 
-                // Save user data to AsyncStorage
+            if (exists) {
+                // Existing user - save profile and navigate
                 await AsyncStorage.setItem('userProfile', JSON.stringify(userData));
-                await AsyncStorage.setItem('userPhone', phoneNumber);
 
-                if (userData.isProfileComplete) {
-                    // Profile is complete, go to home screen
-                    await AsyncStorage.setItem('isProfileComplete', 'true');
-
-                    Alert.alert(
-                        'Welcome Back!',
-                        `Hello ${userData.name}! Welcome back to Kisan Dost.`,
-                        [
-                            {
-                                text: 'Continue',
-                                onPress: () => {
-                                    navigation.replace('Home', { userProfile: userData });
-                                }
-                            }
-                        ]
-                    );
-                } else {
-                    // Profile exists but incomplete, go to address screen
-                    Alert.alert(
-                        'Profile Incomplete',
-                        'Please complete your profile to continue.',
-                        [
-                            {
-                                text: 'Complete Profile',
-                                onPress: () => {
-                                    navigation.replace('AddressPhoneScreen', {
-                                        userType: userData.userType,
-                                        existingData: userData
-                                    });
-                                }
-                            }
-                        ]
-                    );
-                }
+                Alert.alert(
+                    'Welcome Back!',
+                    `Hello ${userData.name}! Welcome back to Kisan Dost.`,
+                    [{
+                        text: 'Continue',
+                        onPress: () => {
+                            const screen = userData.userType === 'farmer' ? 'Home' : 'Vendor';
+                            navigation.replace(screen, { userProfile: userData });
+                        }
+                    }]
+                );
             } else {
-                // New user, go to user selection screen
-                await AsyncStorage.setItem('userPhone', phoneNumber);
-
+                // New user - go to selection
                 Alert.alert(
                     'Welcome to Kisan Dost!',
                     'You\'re new here! Let\'s set up your account.',
-                    [
-                        {
-                            text: 'Get Started',
-                            onPress: () => {
-                                navigation.replace('Selection', { phoneNumber });
-                            }
-                        }
-                    ]
+                    [{
+                        text: 'Get Started',
+                        onPress: () => navigation.replace('Selection', { phoneNumber })
+                    }]
                 );
             }
         } catch (error) {
-            console.error('Error verifying user:', error);
+            console.error('Verification error:', error);
             Alert.alert(
                 'Connection Error',
-                'Unable to connect to server. Please check your internet connection and try again.',
+                'Unable to connect to server. Please check your internet connection.',
                 [
                     { text: 'Retry', onPress: handleOTPVerify },
                     { text: 'Cancel', style: 'cancel' }
@@ -368,18 +249,16 @@ const PhoneAuthScreen = ({ navigation }) => {
         }
     };
 
+    // Resend OTP
     const handleResendOTP = async () => {
-        if (!canResend) return;
+        if (timer > 0) return;
 
         setIsLoading(true);
         try {
-            await sendOTP(phoneNumber);
+            await sendOTP();
             setTimer(30);
-            setCanResend(false);
             setOTP(['', '', '', '', '', '']);
             setError('');
-
-            // Focus first input
             otpInputRefs.current[0]?.focus();
         } catch (error) {
             Alert.alert('Error', 'Failed to resend OTP. Please try again.');
@@ -388,26 +267,23 @@ const PhoneAuthScreen = ({ navigation }) => {
         }
     };
 
+    // Go back to phone step
     const handleBackToPhone = () => {
         setCurrentStep('phone');
         setOTP(['', '', '', '', '', '']);
         setError('');
         setTimer(0);
-        setCanResend(true);
-        setGeneratedOTP('');
+        setServerOTP('');
     };
 
+    // Handle phone input change
     const handlePhoneChange = (text) => {
-        // Only allow numbers and limit to 10 digits
         const numericText = text.replace(/[^0-9]/g, '').slice(0, 10);
         setPhoneNumber(numericText);
-
-        // Clear error when user starts typing
-        if (error) {
-            setError('');
-        }
+        if (error) setError('');
     };
 
+    // Render phone input step
     const renderPhoneStep = () => (
         <View style={styles.phoneSection}>
             <View style={styles.iconContainer}>
@@ -435,9 +311,7 @@ const PhoneAuthScreen = ({ navigation }) => {
                 />
             </View>
 
-            {error ? (
-                <Text style={styles.errorText}>{error}</Text>
-            ) : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <TouchableOpacity
                 style={[styles.continueButton, isLoading && styles.disabledButton]}
@@ -456,6 +330,7 @@ const PhoneAuthScreen = ({ navigation }) => {
         </View>
     );
 
+    // Render OTP verification step
     const renderOTPStep = () => (
         <View style={styles.otpSection}>
             <View style={styles.iconContainer}>
@@ -463,9 +338,7 @@ const PhoneAuthScreen = ({ navigation }) => {
             </View>
 
             <Text style={styles.inputLabel}>Enter Verification Code</Text>
-            <Text style={styles.inputSubLabel}>
-                OTP sent to +91{phoneNumber}
-            </Text>
+            <Text style={styles.inputSubLabel}>OTP sent to +91{phoneNumber}</Text>
             <Text style={styles.changeNumberText}>
                 Wrong number?
                 <Text style={styles.changeNumberLink} onPress={handleBackToPhone}> Change</Text>
@@ -491,20 +364,16 @@ const PhoneAuthScreen = ({ navigation }) => {
                 ))}
             </View>
 
-            {error ? (
-                <Text style={styles.errorText}>{error}</Text>
-            ) : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <View style={styles.timerContainer}>
                 {timer > 0 ? (
-                    <Text style={styles.timerText}>
-                        Resend OTP in {timer} seconds
-                    </Text>
+                    <Text style={styles.timerText}>Resend OTP in {timer} seconds</Text>
                 ) : (
                     <TouchableOpacity
                         style={styles.resendButton}
                         onPress={handleResendOTP}
-                        disabled={!canResend || isLoading}
+                        disabled={isLoading}
                     >
                         <Text style={styles.resendButtonText}>
                             {isLoading ? 'Sending...' : 'Resend OTP'}
@@ -555,10 +424,10 @@ const PhoneAuthScreen = ({ navigation }) => {
                         <Text style={styles.tagline}>Your Smart Farming Companion</Text>
                     </View>
 
-                    {/* Phone or OTP Step */}
+                    {/* Current Step */}
                     {currentStep === 'phone' ? renderPhoneStep() : renderOTPStep()}
 
-                    {/* Info Section - Only show on phone step */}
+                    {/* Info Section - Only on phone step */}
                     {currentStep === 'phone' && (
                         <View style={styles.infoSection}>
                             <Text style={styles.infoTitle}>🌱 Why Kisan Dost?</Text>

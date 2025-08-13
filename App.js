@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 
 import LoadingScreen from './components/Loading';
-import Language from './components/Language';
+
 import Chat from './components/chat';
 import Home from './components/home';
 import UserSelectionScreen from './components/Selection';
@@ -30,11 +30,7 @@ export default function App() {
           component={UserSelectionScreen}
           options={{ headerShown: false }}
         />
-        <Stack.Screen
-          name="Language"
-          component={Language}
-          options={{ headerShown: false }}
-        />
+
         <Stack.Screen
           name="Chat"
           component={Chat}

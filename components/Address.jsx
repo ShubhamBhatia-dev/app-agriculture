@@ -16,6 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from 'react-native-geolocation-service';
+import axios from 'axios';
+import { NETWORK } from './constants';
 
 // --- FIX 1: Moved InputField component outside of AddressPhoneScreen ---
 // This prevents the component from being re-created on every render,
@@ -41,7 +43,6 @@ const AddressPhoneScreen = ({ navigation, route }) => {
     const [userType] = useState(route?.params?.userType || 'farmer');
     const [formData, setFormData] = useState({
         name: '',
-        phoneNumber: '',
         address: '',
         city: '',
         state: '',
@@ -53,8 +54,6 @@ const AddressPhoneScreen = ({ navigation, route }) => {
     const [isLoadingLocation, setIsLoadingLocation] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [errors, setErrors] = useState({});
-
-    // --- OPTIMIZATION: Debounced pincode validation ---
     // This state holds the pincode value that will be validated after the user stops typing.
     const [debouncedPincode, setDebouncedPincode] = useState('');
 
@@ -72,29 +71,6 @@ const AddressPhoneScreen = ({ navigation, route }) => {
     useEffect(() => {
         loadSavedData();
     }, []);
-
-    // Effect for handling debounced pincode validation
-    useEffect(() => {
-        // If the debounced pincode is not 6 digits, do nothing.
-        if (debouncedPincode.length !== 6) {
-            // Clear any previous invalid pincode error if user deletes characters
-            if (errors.pincode === 'Invalid pincode') {
-                setErrors(prev => ({ ...prev, pincode: '' }));
-            }
-            return;
-        }
-
-        // Set a timer to validate the pincode 500ms after the user stops typing.
-        const handler = setTimeout(() => {
-            handlePincodeValidation(debouncedPincode);
-        }, 500);
-
-        // Cleanup function: This clears the timer if the user types again
-        // before the 500ms is up. This is the core of debouncing.
-        return () => {
-            clearTimeout(handler);
-        };
-    }, [debouncedPincode]); // This effect runs only when debouncedPincode changes
 
     const loadSavedData = async () => {
         try {
@@ -250,6 +226,46 @@ const AddressPhoneScreen = ({ navigation, route }) => {
             return false;
         }
     };
+    // Function to send data to server 
+
+    const sendData = async (data) => {
+        try {
+            const apiurl = `${NETWORK}app/submit-user-data/`;
+            const response = await axios.post(apiurl, data);
+            if (response.data.success) {
+                await AsyncStorage.setItem('userProfile', JSON.stringify(data));
+                Alert.alert(
+                    'Success!',
+                    'Your profile has been saved successfully.',
+                    [
+                        {
+                            text: 'Continue',
+                            onPress: () => {
+                                if (userType === 'farmer') {
+                                    navigation.replace('Home');
+                                } else {
+                                    navigation.replace('Vendor');
+                                }
+                            }
+                        }
+                    ]
+                );
+            } else {
+                Alert.alert('Error', 'Failed to save profile. Please try again later.');
+                // console.error('Server error:', response.data.message);
+            }
+
+
+        }
+        catch (error) {
+            console.error('Error sending data:', error);
+            Alert.alert('Error', 'Failed to send data. Please try again later.');
+        }
+    }
+
+
+
+
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -276,9 +292,6 @@ const AddressPhoneScreen = ({ navigation, route }) => {
     const validateForm = () => {
         const newErrors = {};
 
-        if (!formData.phoneNumber || formData.phoneNumber.length !== 10) {
-            newErrors.phoneNumber = 'Please enter a valid 10-digit phone number';
-        }
 
         if (!formData.address.trim()) {
             newErrors.address = 'Address is required';
@@ -313,37 +326,19 @@ const AddressPhoneScreen = ({ navigation, route }) => {
 
         setIsSaving(true);
 
+        const phoneNumber = await AsyncStorage.getItem('userPhone');
+        console.log(phoneNumber);
         try {
             const userProfile = {
                 userType,
                 ...formData,
-                location: currentLocation,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                phone: phoneNumber,
+
             };
+            console.log('Saving user profile:', userProfile); ``
 
-            await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
-            await AsyncStorage.setItem('isProfileComplete', 'true');
+            sendData(userProfile);
 
-            Alert.alert(
-                'Success!',
-                'Your profile has been saved successfully.',
-                [
-                    {
-                        text: 'Continue',
-                        onPress: () => {
-                            if (userType === 'farmer') {
-                                navigation.replace('Home', { userProfile });
-                            } else {
-                                navigation.replace('Vendor', { userProfile });
-
-
-                                console.log('Profile saved:', userProfile);
-                            }
-                        }
-                    }
-                ]
-            );
         } catch (error) {
             console.error('Error saving profile:', error);
             Alert.alert('Error', 'Failed to save profile. Please try again.');
@@ -388,15 +383,6 @@ const AddressPhoneScreen = ({ navigation, route }) => {
                         error={errors.name}
                     />
                     {/* Phone Number */}
-                    <InputField
-                        label="Phone Number / फ़ोन नंबर *"
-                        value={formData.phoneNumber}
-                        onChangeText={(value) => handleInputChange('phoneNumber', value.replace(/[^0-9]/g, ''))}
-                        placeholder="Enter 10-digit mobile number"
-                        keyboardType="numeric"
-                        maxLength={10}
-                        error={errors.phoneNumber}
-                    />
 
                     {/* Location Button */}
                     <TouchableOpacity
@@ -475,7 +461,7 @@ const AddressPhoneScreen = ({ navigation, route }) => {
                         {isSaving ? (
                             <ActivityIndicator size="small" color="#fff" />
                         ) : (
-                            <Text style={styles.saveButtonText}>Save & Continue</Text>
+                            <Text style={styles.saveButtonText}>Save</Text>
                         )}
                     </TouchableOpacity>
 

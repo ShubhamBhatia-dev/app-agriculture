@@ -2,42 +2,43 @@ import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet, Image, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
-import crop from '../assets/crop.png'; // Adjust the path as necessary
+import crop from '../assets/crop.png';
 
 export default function LoadingScreen({ navigation }) {
     useEffect(() => {
         const checkOnboardingStatus = async () => {
             try {
-                // sleep for 1 seconds to simulate loading
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                const language = await AsyncStorage.getItem('user_language');
-                const address = await AsyncStorage.getItem('user_address');
-                const type = await AsyncStorage.getItem('user_type');
-                const number = await AsyncStorage.getItem('user_number');
 
-                if (type && type == 'farmer') {
-                        navigation.replace('Home', { language, address });
-                } else if (type && type == 'vendor') {
-                    navigation.replace('Vendor', { language, address, number });
+                const storedUser = await AsyncStorage.getItem('userProfile');
+                const user = storedUser ? JSON.parse(storedUser) : null;
+
+                if (!user) {
+                    navigation.replace('Number');
+                    return;
+                }
+
+                if (user.userType === 'farmer') {
+                    navigation.replace('Home');
+                } else if (user.userType === 'vendor') {
+                    navigation.replace('Vendor');
                 } else {
-                    // Otherwise, start the onboarding process
                     navigation.replace('Number');
                 }
             } catch (e) {
-                // Handle errors here, e.g., log them or show a fallback screen
                 console.error("Error checking onboarding status:", e);
-                navigation.replace('Language'); // Fallback to onboarding
+                navigation.replace('Number');
             }
         };
 
         checkOnboardingStatus();
-    }, []); // The empty array ensures this effect runs only once
+    }, []);
 
     return (
         <View style={styles.container}>
 
             <Text style={styles.logotext}>KISAN DOST</Text>
-            <ActivityIndicator size="large" color="#7352f5ff" />
+            <ActivityIndicator size="large" color="#4aa533ff" />
 
             <Image
                 source={crop}
@@ -67,7 +68,7 @@ const styles = StyleSheet.create({
     logotext: {
         fontSize: 50,
         fontWeight: '800',
-        color: '#7352f5ff',
+        color: '#13bc19ff',
         marginTop: 0,
     },
 });

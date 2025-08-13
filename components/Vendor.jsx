@@ -34,11 +34,11 @@ const VendorMarketplaceScreen = ({ navigation }) => {
     const [userProfile, setUserProfile] = useState(null);
     const [isSidebarVisible, setIsSidebarVisible] = useState(false);
 
-    // Sidebar animation
+    // Sidebar animation with proper initial values
     const sidebarAnimation = useRef(new Animated.Value(-width * 0.8)).current;
     const overlayAnimation = useRef(new Animated.Value(0)).current;
 
-    // Sample data - In real app, this would come from API
+    // Sample data
     const sampleCrops = [
         {
             id: '1',
@@ -53,7 +53,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
             quality: 'Grade A',
             harvestDate: '2024-01-15',
             contact: '9876543210',
-            description: 'High quality wheat, organic farming',
+            description: 'High quality wheat, cultivated using organic farming methods.',
             image: '🌾'
         },
         {
@@ -69,73 +69,25 @@ const VendorMarketplaceScreen = ({ navigation }) => {
             quality: 'Grade A+',
             harvestDate: '2024-01-10',
             contact: '9876543211',
-            description: 'Basmati rice, premium quality',
+            description: 'Premium quality Basmati rice with long grains and excellent aroma.',
             image: '🌾'
         },
         {
             id: '3',
-            cropName: 'Sugarcane',
-            cropNameHindi: 'गन्ना',
-            farmerName: 'Amit Singh',
-            price: 320,
+            cropName: 'Maize',
+            cropNameHindi: 'मक्का',
+            farmerName: 'Anita Devi',
+            price: 1800,
             unit: 'per quintal',
             quantity: 100,
             state: 'Uttar Pradesh',
-            district: 'Meerut',
-            quality: 'Grade A',
-            harvestDate: '2024-01-12',
+            district: 'Kanpur',
+            quality: 'Grade B',
+            harvestDate: '2023-12-25',
             contact: '9876543212',
-            description: 'Fresh sugarcane with high sugar content',
-            image: '🎋'
-        },
-        {
-            id: '4',
-            cropName: 'Cotton',
-            cropNameHindi: 'कपास',
-            farmerName: 'Prakash Joshi',
-            price: 5800,
-            unit: 'per quintal',
-            quantity: 20,
-            state: 'Gujarat',
-            district: 'Bharuch',
-            quality: 'Grade B+',
-            harvestDate: '2024-01-08',
-            contact: '9876543213',
-            description: 'Long staple cotton, good quality',
-            image: '🤍'
-        },
-        {
-            id: '5',
-            cropName: 'Maize',
-            cropNameHindi: 'मक्का',
-            farmerName: 'Ravi Sharma',
-            price: 1800,
-            unit: 'per quintal',
-            quantity: 75,
-            state: 'Maharashtra',
-            district: 'Nashik',
-            quality: 'Grade A',
-            harvestDate: '2024-01-14',
-            contact: '9876543214',
-            description: 'Yellow maize, moisture content 14%',
+            description: 'Good quality maize suitable for poultry feed and industrial use.',
             image: '🌽'
         },
-        {
-            id: '6',
-            cropName: 'Soybean',
-            cropNameHindi: 'सोयाबीन',
-            farmerName: 'Mahesh Patil',
-            price: 4200,
-            unit: 'per quintal',
-            quantity: 40,
-            state: 'Madhya Pradesh',
-            district: 'Indore',
-            quality: 'Grade A',
-            harvestDate: '2024-01-11',
-            contact: '9876543215',
-            description: 'Organic soybean, high protein content',
-            image: '🟤'
-        }
     ];
 
     const indianStates = [
@@ -148,8 +100,10 @@ const VendorMarketplaceScreen = ({ navigation }) => {
     useEffect(() => {
         loadUserProfile();
         loadCrops();
+    }, []);
 
-        // Handle Android back button for sidebar
+    // Separate useEffect for BackHandler to avoid dependency issues
+    useEffect(() => {
         const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
         return () => backHandler.remove();
     }, [isSidebarVisible]);
@@ -171,16 +125,28 @@ const VendorMarketplaceScreen = ({ navigation }) => {
             const profile = await AsyncStorage.getItem('userProfile');
             if (profile) {
                 setUserProfile(JSON.parse(profile));
+            } else {
+                // Set default user profile if none exists
+                setUserProfile({
+                    name: 'Demo User',
+                    userType: 'vendor',
+                    contact: '9876543210'
+                });
             }
         } catch (error) {
             console.error('Error loading user profile:', error);
+            // Set fallback profile
+            setUserProfile({
+                name: 'Demo User',
+                userType: 'vendor',
+                contact: '9876543210'
+            });
         }
     };
 
     const loadCrops = async () => {
         setIsLoading(true);
         try {
-            // Simulate API call delay
             await new Promise(resolve => setTimeout(resolve, 1000));
             setCrops(sampleCrops);
         } catch (error) {
@@ -200,12 +166,10 @@ const VendorMarketplaceScreen = ({ navigation }) => {
     const filterCrops = () => {
         let filtered = crops;
 
-        // Filter by state
         if (selectedState !== 'All States') {
             filtered = filtered.filter(crop => crop.state === selectedState);
         }
 
-        // Filter by search query
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(crop =>
@@ -222,6 +186,8 @@ const VendorMarketplaceScreen = ({ navigation }) => {
 
     const openSidebar = () => {
         setIsSidebarVisible(true);
+
+        // Animate to open position
         Animated.parallel([
             Animated.timing(sidebarAnimation, {
                 toValue: 0,
@@ -258,29 +224,17 @@ const VendorMarketplaceScreen = ({ navigation }) => {
             'Sign Out',
             'क्या आप वाकई साइन आउट करना चाहते हैं?',
             [
-                {
-                    text: 'Cancel',
-                    style: 'cancel'
-                },
+                { text: 'Cancel', style: 'cancel' },
                 {
                     text: 'Sign Out',
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            // Clear stored data
-                            await AsyncStorage.multiRemove([
-                                'userProfile',
-                                'userPhone',
-                                'isProfileComplete'
-                            ]);
-
-                            // Close sidebar first
+                            await AsyncStorage.clear();
                             closeSidebar();
 
-                            // Navigate to login screen after a brief delay
-                            setTimeout(() => {
-                                navigation.replace('PhoneAuth');
-                            }, 300);
+                            Alert.alert('Signed Out', 'You have been signed out successfully.');
+                            navigation.replace('Number')
                         } catch (error) {
                             console.error('Sign out error:', error);
                             Alert.alert('Error', 'Failed to sign out. Please try again.');
@@ -293,18 +247,11 @@ const VendorMarketplaceScreen = ({ navigation }) => {
 
     const handleUserSettings = () => {
         closeSidebar();
-        // Navigate to settings screen
-        // navigation.navigate('UserSettings');
-        Alert.alert(
-            'User Settings',
-            'Settings screen will be implemented here. You can edit your profile, change preferences, etc.',
-            [{ text: 'OK' }]
-        );
+        navigation.navigate('userSettings');
     };
 
     const handleMyOrders = () => {
         closeSidebar();
-        // navigation.navigate('MyOrders');
         Alert.alert(
             'My Orders',
             'Orders screen will show your purchase history and current orders.',
@@ -319,7 +266,6 @@ const VendorMarketplaceScreen = ({ navigation }) => {
 
     const confirmPurchase = async () => {
         try {
-            // Here you would typically make an API call to process the purchase
             const purchaseData = {
                 cropId: selectedCrop.id,
                 cropName: selectedCrop.cropName,
@@ -330,7 +276,6 @@ const VendorMarketplaceScreen = ({ navigation }) => {
                 vendorInfo: userProfile
             };
 
-            // Save purchase to AsyncStorage (in real app, send to server)
             const existingPurchases = await AsyncStorage.getItem('purchases');
             const purchases = existingPurchases ? JSON.parse(existingPurchases) : [];
             purchases.push(purchaseData);
@@ -341,10 +286,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
                 'Purchase Confirmed!',
                 `You have successfully placed an order for ${selectedCrop.cropName} from ${selectedCrop.farmerName}. The farmer will contact you soon.`,
                 [
-                    {
-                        text: 'View Orders',
-                        onPress: handleMyOrders
-                    },
+                    { text: 'View Orders', onPress: handleMyOrders },
                     { text: 'Continue Shopping', style: 'cancel' }
                 ]
             );
@@ -396,12 +338,15 @@ const VendorMarketplaceScreen = ({ navigation }) => {
         </View>
     );
 
+    // Sidebar Components -------------------------------------------------------->
+
     const Sidebar = () => (
         <Modal
             visible={isSidebarVisible}
-            transparent
+            transparent={true}
             animationType="none"
             onRequestClose={closeSidebar}
+            statusBarTranslucent={true}
         >
             <View style={styles.sidebarContainer}>
                 {/* Overlay */}
@@ -427,13 +372,9 @@ const VendorMarketplaceScreen = ({ navigation }) => {
                 >
                     {/* User Profile Section */}
                     <View style={styles.sidebarHeader}>
-                        <View style={styles.userAvatar}>
-                            <Text style={styles.avatarText}>
-                                {userProfile?.name?.charAt(0)?.toUpperCase() || 'U'}
-                            </Text>
-                        </View>
+
                         <View style={styles.userInfo}>
-                            <Text style={styles.userName}>
+                            <Text style={styles.userName} numberOfLines={1}>
                                 {userProfile?.name || 'User'}
                             </Text>
                             <Text style={styles.userType}>
@@ -554,7 +495,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
             transparent
             animationType="fade"
         >
-            <View style={styles.modalOverlay}>
+            <View style={styles.modalPurchaseOverlay}>
                 <View style={styles.purchaseModal}>
                     <Text style={styles.purchaseTitle}>Confirm Purchase</Text>
                     <Text style={styles.purchaseSubtitle}>क्या आप वाकई खरीदना चाहते हैं?</Text>
@@ -600,7 +541,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
                             style={styles.confirmButton}
                             onPress={confirmPurchase}
                         >
-                            <Text style={styles.confirmButtonText}>Confirm Purchase</Text>
+                            <Text style={styles.confirmButtonText}>Connect To Farmer</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -614,7 +555,11 @@ const VendorMarketplaceScreen = ({ navigation }) => {
 
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.menuButton} onPress={openSidebar}>
+                <TouchableOpacity
+                    style={styles.menuButton}
+                    onPress={openSidebar}
+                    activeOpacity={0.7}
+                >
                     <Text style={styles.menuButtonText}>☰</Text>
                 </TouchableOpacity>
                 <View style={styles.headerContent}>
@@ -674,6 +619,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
                     renderItem={({ item }) => <CropCard crop={item} />}
                     keyExtractor={item => item.id}
                     style={styles.cropsList}
+                    contentContainerStyle={{ paddingBottom: 16 }}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
                         <RefreshControl
@@ -701,8 +647,6 @@ const VendorMarketplaceScreen = ({ navigation }) => {
     );
 };
 
-export default VendorMarketplaceScreen;
-
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -722,10 +666,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
     },
     menuButtonText: {
-        fontSize: 20,
+        fontSize: 24,
         color: '#fff',
         fontWeight: 'bold',
     },
@@ -941,58 +884,65 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         paddingVertical: 14,
         alignItems: 'center',
-        elevation: 2,
     },
     buyButtonText: {
+        color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
-        color: '#fff',
     },
     emptyContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 50,
+        padding: 20,
+        marginTop: height * 0.1,
     },
     emptyText: {
-        fontSize: 24,
+        fontSize: 22,
+        fontWeight: 'bold',
         color: '#666',
         marginBottom: 8,
     },
     emptySubtext: {
-        fontSize: 14,
+        fontSize: 16,
         color: '#999',
         textAlign: 'center',
-        paddingHorizontal: 40,
     },
     // Sidebar Styles
     sidebarContainer: {
-        flex: 1,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1000,
         flexDirection: 'row',
     },
     sidebarOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
     },
     overlayTouchable: {
         flex: 1,
     },
     sidebar: {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
         width: width * 0.8,
-        backgroundColor: '#fff',
-        elevation: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 2, height: 0 },
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
+        height: '100%',
+        backgroundColor: '#FFFFFF',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        paddingTop: StatusBar.currentHeight || 0,
     },
     sidebarHeader: {
-        backgroundColor: '#2E7D32',
         padding: 20,
+        backgroundColor: '#F1F8E9',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E0E0E0',
         flexDirection: 'row',
         alignItems: 'center',
     },
@@ -1006,58 +956,58 @@ const styles = StyleSheet.create({
         marginRight: 16,
     },
     avatarText: {
-        fontSize: 24,
-        fontWeight: 'bold',
         color: '#fff',
+        fontSize: 28,
+        fontWeight: 'bold',
     },
     userInfo: {
         flex: 1,
     },
     userName: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 4,
+        color: '#333',
     },
     userType: {
         fontSize: 14,
-        color: '#C8E6C9',
-        marginBottom: 2,
+        color: '#666',
+        marginTop: 4,
     },
     userPhone: {
-        fontSize: 12,
-        color: '#C8E6C9',
+        fontSize: 14,
+        color: '#666',
+        marginTop: 4,
     },
     sidebarMenu: {
         flex: 1,
-        paddingTop: 20,
+        paddingVertical: 10,
     },
     menuItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 16,
+        paddingVertical: 15,
         paddingHorizontal: 20,
         borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
+        borderBottomColor: '#F5F5F5',
     },
     menuIcon: {
-        fontSize: 24,
-        width: 40,
+        fontSize: 22,
+        marginRight: 20,
+        width: 30,
         textAlign: 'center',
-        marginRight: 16,
     },
     menuTextContainer: {
         flex: 1,
     },
     menuText: {
         fontSize: 16,
-        fontWeight: '600',
         color: '#333',
-        marginBottom: 2,
+        fontWeight: '500',
     },
     menuSubtext: {
         fontSize: 12,
-        color: '#666',
+        color: '#999',
+        marginTop: 2,
     },
     menuArrow: {
         fontSize: 20,
@@ -1066,132 +1016,140 @@ const styles = StyleSheet.create({
     sidebarFooter: {
         padding: 20,
         borderTopWidth: 1,
-        borderTopColor: '#F0F0F0',
+        borderTopColor: '#E0E0E0',
     },
     signOutButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFE5E5',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 12,
-        marginBottom: 12,
+        backgroundColor: '#FFEBEE',
+        padding: 12,
+        borderRadius: 8,
+        justifyContent: 'center',
+        marginBottom: 10,
     },
     signOutIcon: {
         fontSize: 18,
-        marginRight: 12,
+        marginRight: 10,
     },
     signOutText: {
-        fontSize: 16,
-        fontWeight: '600',
         color: '#D32F2F',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     appVersion: {
-        fontSize: 12,
-        color: '#999',
         textAlign: 'center',
+        fontSize: 12,
+        color: '#aaa',
     },
-    // Modal Styles
+    // Filter Modal Styles
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
     },
     filterModal: {
-        backgroundColor: '#fff',
-        borderRadius: 16,
+        backgroundColor: 'white',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
         padding: 20,
-        width: '100%',
         maxHeight: '80%',
     },
     modalTitle: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 16,
+        marginBottom: 20,
         textAlign: 'center',
+        color: '#333',
     },
     stateList: {
-        maxHeight: 400,
+        flexGrow: 0,
     },
     stateItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
+        paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
+        borderBottomColor: '#eee',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     selectedState: {
         backgroundColor: '#E8F5E8',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        marginHorizontal: -12,
     },
     stateText: {
-        fontSize: 16,
-        color: '#333',
+        fontSize: 18,
+        color: '#555',
     },
     selectedStateText: {
         color: '#2E7D32',
-        fontWeight: '600',
+        fontWeight: 'bold',
     },
     checkmark: {
         fontSize: 18,
         color: '#4CAF50',
-        fontWeight: 'bold',
     },
     closeButton: {
         backgroundColor: '#4CAF50',
+        padding: 16,
         borderRadius: 12,
-        paddingVertical: 14,
+        marginTop: 20,
         alignItems: 'center',
-        marginTop: 16,
     },
     closeButtonText: {
-        fontSize: 16,
-        fontWeight: 'bold',
         color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    // Purchase Modal Styles
+    modalPurchaseOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'center',
+        alignItems: 'center'
     },
     purchaseModal: {
-        backgroundColor: '#fff',
+        width: '90%',
+        backgroundColor: 'white',
         borderRadius: 16,
         padding: 24,
-        width: '100%',
-        maxWidth: 400,
+        alignItems: 'center',
+        elevation: 5,
     },
     purchaseTitle: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: 'bold',
         color: '#2E7D32',
-        textAlign: 'center',
         marginBottom: 8,
     },
     purchaseSubtitle: {
         fontSize: 16,
-        color: '#4CAF50',
-        textAlign: 'center',
+        color: '#666',
         marginBottom: 20,
+        textAlign: 'center',
     },
     purchaseDetails: {
-        backgroundColor: '#F8F8F8',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 16,
+        alignSelf: 'stretch',
+        marginBottom: 20,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: '#eee',
+        paddingVertical: 16,
     },
     purchaseItem: {
-        fontSize: 14,
+        fontSize: 16,
         color: '#333',
-        marginBottom: 8,
-        lineHeight: 20,
+        marginBottom: 10,
+        lineHeight: 22,
     },
     purchaseLabel: {
         fontWeight: 'bold',
-        color: '#2E7D32',
+        color: '#555',
     },
     purchaseNote: {
         fontSize: 13,
-        color: '#666',
+        color: '#757575',
         textAlign: 'center',
         fontStyle: 'italic',
         marginBottom: 24,
@@ -1199,30 +1157,36 @@ const styles = StyleSheet.create({
     },
     modalButtons: {
         flexDirection: 'row',
-        gap: 12,
+        justifyContent: 'space-between',
+        alignSelf: 'stretch',
     },
     cancelButton: {
         flex: 1,
-        backgroundColor: '#F5F5F5',
+        padding: 14,
         borderRadius: 12,
-        paddingVertical: 14,
+        borderWidth: 1,
+        borderColor: '#999',
         alignItems: 'center',
+        marginRight: 8,
     },
     cancelButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
         color: '#666',
+        fontWeight: 'bold',
+        fontSize: 16,
     },
     confirmButton: {
-        flex: 1,
-        backgroundColor: '#4CAF50',
+        flex: 1.5,
+        padding: 14,
         borderRadius: 12,
-        paddingVertical: 14,
+        backgroundColor: '#4CAF50',
         alignItems: 'center',
+        marginLeft: 8,
     },
     confirmButtonText: {
-        fontSize: 16,
-        fontWeight: 'bold',
         color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 16,
     },
 });
+
+export default VendorMarketplaceScreen;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     StyleSheet,
     Text,
@@ -12,26 +12,51 @@ import {
     Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const UserSettings = ({ navigation }) => {
     // User data state
-    const [userDetails, setUserDetails] = useState({
-        name: 'राम सिंह',
-        nameEnglish: 'Ram Singh',
-        phone: '+91 9876543210',
-        email: 'ramsingh@email.com',
-        address: 'Village Kalka, Shimla',
-        addressHindi: 'गांव कालका, शिमला',
-        farmSize: '5 acres',
-        farmSizeHindi: '5 एकड़',
-        crops: 'Wheat, Rice, Vegetables',
-        cropsHindi: 'गेहूं, चावल, सब्जियां',
-        language: 'Hindi'
-    });
+    //{"address": "Kamand Himachal Pradesh District Mandi 175075 ", "city": "Kamand", "country": "India",
+    //  "district": "Mandi", "name": "Geeks Randi", "phone": "9942534071", "pincode": "175075", "state": "Himachal Pradesh ", "userType": "farmer"}
+    //
+
+
+
+    const [userDetails, setUserDetails] = useState(null);
 
     const [isEditing, setIsEditing] = useState(false);
     const [showLanguageModal, setShowLanguageModal] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    useEffect(() => {
+        const fetchUserData = async () => {
+            try {
+                // Wait for the promise to resolve
+                const data = await AsyncStorage.getItem('userProfile');
+
+                // Only proceed if data exists
+                if (data) {
+                    const parsedData = JSON.parse(data);
+
+                    // Set the state with the fetched data
+                    setUserDetails({
+                        name: parsedData.name,
+                        phone: parsedData.phone,
+                        address: `${parsedData.city}  ${parsedData.district}  ${parsedData.state}  ${parsedData.pincode}`,
+                        language: 'English'
+                    });
+                    console.log('User data fetched:', parsedData);
+                }
+            } catch (error) {
+                console.error('Error fetching user profile:', error);
+            }
+        };
+
+        fetchUserData();
+    }, []);
+    if (!userDetails) {
+        return <Text>Loading...</Text>;
+    }
+
 
     const languages = [
         { code: 'hi', name: 'हिंदी (Hindi)', flag: '🇮🇳' },
@@ -100,21 +125,7 @@ const UserSettings = ({ navigation }) => {
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {/* Profile Picture Section */}
-                <View style={styles.profileSection}>
-                    <View style={styles.profileImageContainer}>
-                        <View style={styles.profileImage}>
-                            <Text style={styles.profileInitials}>
-                                {userDetails.nameEnglish.split(' ').map(n => n[0]).join('')}
-                            </Text>
-                        </View>
-                        <TouchableOpacity style={styles.editImageButton}>
-                            <Text style={styles.editImageText}>📷</Text>
-                        </TouchableOpacity>
-                    </View>
-                    <Text style={styles.profileName}>{userDetails.name}</Text>
-                    <Text style={styles.profileNameEnglish}>{userDetails.nameEnglish}</Text>
-                </View>
+
 
                 {/* Edit Toggle Button */}
                 <View style={styles.editToggleContainer}>
@@ -153,23 +164,13 @@ const UserSettings = ({ navigation }) => {
                         <Text style={styles.sectionTitle}>Personal Information</Text>
                         <Text style={styles.sectionSubtitle}>व्यक्तिगत जानकारी</Text>
 
+
+
                         <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Name (Hindi) / नाम</Text>
+                            <Text style={styles.inputLabel}>Name / नाम </Text>
                             <TextInput
                                 style={[styles.textInput, !isEditing && styles.disabledInput]}
                                 value={userDetails.name}
-                                onChangeText={(text) => handleInputChange('name', text)}
-                                editable={isEditing}
-                                placeholder="अपना नाम दर्ज करें"
-                                placeholderTextColor="#999"
-                            />
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Name (English)</Text>
-                            <TextInput
-                                style={[styles.textInput, !isEditing && styles.disabledInput]}
-                                value={userDetails.nameEnglish}
                                 onChangeText={(text) => handleInputChange('nameEnglish', text)}
                                 editable={isEditing}
                                 placeholder="your name"
@@ -190,19 +191,7 @@ const UserSettings = ({ navigation }) => {
                             />
                         </View>
 
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Email</Text>
-                            <TextInput
-                                style={[styles.textInput, !isEditing && styles.disabledInput]}
-                                value={userDetails.email}
-                                onChangeText={(text) => handleInputChange('email', text)}
-                                editable={isEditing}
-                                placeholder="your.email@example.com"
-                                placeholderTextColor="#999"
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                            />
-                        </View>
+
                     </View>
 
                     {/* Location Information */}
@@ -224,78 +213,9 @@ const UserSettings = ({ navigation }) => {
                             />
                         </View>
 
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Address (Hindi) / पता (हिंदी में)</Text>
-                            <TextInput
-                                style={[styles.textInput, styles.textArea, !isEditing && styles.disabledInput]}
-                                value={userDetails.addressHindi}
-                                onChangeText={(text) => handleInputChange('addressHindi', text)}
-                                editable={isEditing}
-                                placeholder="अपना पता दर्ज करें"
-                                placeholderTextColor="#999"
-                                multiline={true}
-                                numberOfLines={3}
-                            />
-                        </View>
                     </View>
 
-                    {/* Farming Information */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Farming Information</Text>
-                        <Text style={styles.sectionSubtitle}>खेती की जानकारी</Text>
 
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Farm Size / खेत का आकार</Text>
-                            <TextInput
-                                style={[styles.textInput, !isEditing && styles.disabledInput]}
-                                value={userDetails.farmSize}
-                                onChangeText={(text) => handleInputChange('farmSize', text)}
-                                editable={isEditing}
-                                placeholder="e.g., 5 acres"
-                                placeholderTextColor="#999"
-                            />
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Farm Size (Hindi) / खेत का आकार (हिंदी में)</Text>
-                            <TextInput
-                                style={[styles.textInput, !isEditing && styles.disabledInput]}
-                                value={userDetails.farmSizeHindi}
-                                onChangeText={(text) => handleInputChange('farmSizeHindi', text)}
-                                editable={isEditing}
-                                placeholder="उदा. 5 एकड़"
-                                placeholderTextColor="#999"
-                            />
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Crops Grown / उगाई जाने वाली फसलें</Text>
-                            <TextInput
-                                style={[styles.textInput, styles.textArea, !isEditing && styles.disabledInput]}
-                                value={userDetails.crops}
-                                onChangeText={(text) => handleInputChange('crops', text)}
-                                editable={isEditing}
-                                placeholder="e.g., Wheat, Rice, Vegetables"
-                                placeholderTextColor="#999"
-                                multiline={true}
-                                numberOfLines={2}
-                            />
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Crops (Hindi) / फसलें (हिंदी में)</Text>
-                            <TextInput
-                                style={[styles.textInput, styles.textArea, !isEditing && styles.disabledInput]}
-                                value={userDetails.cropsHindi}
-                                onChangeText={(text) => handleInputChange('cropsHindi', text)}
-                                editable={isEditing}
-                                placeholder="उदा. गेहूं, चावल, सब्जियां"
-                                placeholderTextColor="#999"
-                                multiline={true}
-                                numberOfLines={2}
-                            />
-                        </View>
-                    </View>
 
                     {/* App Preferences */}
                     <View style={styles.section}>

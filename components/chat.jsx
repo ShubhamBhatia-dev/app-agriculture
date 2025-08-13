@@ -20,20 +20,19 @@ import Voice from '@react-native-voice/voice';
 import Tts from 'react-native-tts';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { NETWORK } from './constants'; // Adjust the import path as necessary
+import AsyncStorage from '@react-native-async-storage/async-storage';
 const { height: screenHeight } = Dimensions.get('window');
 
 const Chat = () => {
+
     const [text, setText] = useState('');
+    const [currentTitle, setCurrentTitle] = useState(null);
     const [messages, setMessages] = useState([
         { id: '1', text: 'Hello! How can I help you with your farming today?', sender: 'ai' }
     ]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [previousChats, setPreviousChats] = useState([
-        { id: '1', title: 'Crop Rotation Discussion', date: '2024-01-15' },
-        { id: '2', title: 'Pest Control Methods', date: '2024-01-14' },
-        { id: '3', title: 'Weather Updates', date: '2024-01-13' }
-    ]);
+    const [previousChats, setPreviousChats] = useState(null);
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [selectedLanguage, setSelectedLanguage] = useState('hi-IN');
@@ -55,6 +54,32 @@ const Chat = () => {
     ];
 
     useEffect(() => {
+
+        //   Function to fetch previous chats heading 
+
+        const fetchPreviousChats = async () => {
+
+            const phoneNumer = await AsyncStorage.getItem('userPhone');
+            const api = `${NETWORK}app/history/?phone=${phoneNumer}`;
+            console.log("Fetching previous chats from API:", api);
+            try {
+                const response = await axios.get(api);
+                console.log(response.data);
+                if (response.data && Array.isArray(response.data.data)) {
+                    setPreviousChats(response.data.data);
+                    console.log("Previous chats fetched successfully:", response.data.data);
+                } else {
+                    console.warn("Invalid chat data format:", response.data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch previous chats:", error);
+            }
+        }
+        fetchPreviousChats();
+
+
+
+
         // Voice recognition setup
         Voice.onSpeechResults = onSpeechResults;
         Voice.onSpeechError = onSpeechError;
@@ -83,6 +108,28 @@ const Chat = () => {
         };
     }, []);
 
+
+    /// fetch Previous Chats on click 
+
+    const openPrevChat = async (title) => {
+        const api = `${NETWORK}app/ai/`;
+        try {
+            const response = await axios.post(api, {
+                title: title,
+
+            });
+            if (response.data) {
+                setMessages(response.data.content);
+                setCurrentTitle(title);
+                setIsSidebarOpen(false);
+                console.log("Previous chat loaded successfully:", response.data.content);
+            }
+
+        } catch (error) {
+            console.error("Failed to fetch previous chat:", error);
+        }
+    };
+
     const handleSendMessage = async () => {
         if (text.trim()) {
             const newMessage = { id: Date.now().toString(), text: text.trim(), sender: 'user' };
@@ -94,31 +141,49 @@ const Chat = () => {
                 scrollViewRef.current?.scrollToEnd({ animated: true });
             }, 100);
 
-            // Simulate AI response (replace with actual API call)
+            let message = messages;
+            message.push({
+                id: (Date.now() + 1).toString(), text: text.trim(), sender: 'user'
+            });
+            setMessages(message);
+            let data = {
+                phone: await AsyncStorage.getItem('userPhone'),
+                title: currentTitle,
+                content: messages,
+            }
+
+            console.log("Saving chat history:", data);
+            // let response = await axios.post(`${NETWORK}app/history/`, data);
+
+
+            // if (response.data.success) {
+            //     console.log("Chat history saved successfully");
+            // }
+
+            let response = await axios.post(`${NETWORK}app/ai/`, {
+                ...data
+            });
+
+            if (response.data) {
+                console.log(response.data);
+            }
+
+
+
+            const aiResponse = response.data.reply;
+            const aiMessage = { id: (Date.now() + 1).toString(), text: aiResponse, sender: 'ai' };
+            setMessages(prev => [...prev, aiMessage]);
+            // Code to shift to newest message and close keyboard 
             setTimeout(() => {
-                const aiResponse = generateAIResponse(text.trim());
-                const aiMessage = { id: (Date.now() + 1).toString(), text: aiResponse, sender: 'ai' };
-                setMessages(prev => [...prev, aiMessage]);
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+                Keyboard.dismiss();
+            }, 100);
 
-                setTimeout(() => {
-                    scrollViewRef.current?.scrollToEnd({ animated: true });
-                }, 100);
-            }, 1000);
+
+
         }
     };
 
-    const generateAIResponse = async (userMessage) => {
-        // Simple response generation based on keywords
-        const api_endpoint = ""
-        const obj = {
-            "number": 1234567890,
-            "type": "app",
-            "message": userMessage,
-        }
-        const resp = await axios.post(api_endpoint, obj);
-        return resp.data.response || "I'm not sure how to respond to that.";
-
-    };
 
     const requestMicrophonePermission = async () => {
         if (Platform.OS === 'android') {
@@ -232,10 +297,17 @@ const Chat = () => {
         }
     };
 
+
+
+
     const startNewChat = () => {
         setMessages([
             { id: '1', text: 'Hello! How can I help you with your farming today?', sender: 'ai' }
         ]);
+        let date = new Date().toLocaleTimeString() + " " + new Date().toDateString()
+
+
+        setCurrentTitle('Kisan Dost ' + date);
         setIsSidebarOpen(false);
     };
 
@@ -253,7 +325,7 @@ const Chat = () => {
                             <Text style={styles.newChatButtonText}>+ New Chat</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.newChatButton} onPress={startNewChat}>
-                            <Text style={styles.newChatButtonText}>Finance</Text>
+                            <Text style={styles.newChatButtonText}>SELL CROPS</Text>
                         </TouchableOpacity>
 
                         <Text style={styles.sectionHeader}>Language / भाषा</Text>
@@ -277,12 +349,25 @@ const Chat = () => {
                             ))}
                         </ScrollView>
 
+                        {
+                            currentTitle ? (
+                                <View>
+                                    <Text style={styles.sectionHeader}>current Chat</Text>
+                                    <TouchableOpacity>
+                                        <Text>
+                                            {currentTitle}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : null
+                        }
+
                         <Text style={styles.sectionHeader}>Previous Chats</Text>
                         <ScrollView style={styles.chatHistoryList}>
-                            {previousChats.map(chat => (
-                                <TouchableOpacity key={chat.id} style={styles.chatHistoryItem}>
-                                    <Text style={styles.chatHistoryText}>{chat.title}</Text>
-                                    <Text style={styles.chatHistoryDate}>{chat.date}</Text>
+                            {(previousChats || []).map((chat, key) => (
+                                <TouchableOpacity key={key} style={styles.chatHistoryItem} onPress={() => openPrevChat(chat)}>
+                                    <Text style={styles.chatHistoryText}>{chat}</Text>
+                                    <Text style={styles.chatHistoryDate}>{chat}</Text>
                                 </TouchableOpacity>
                             ))}
                         </ScrollView>
@@ -303,7 +388,8 @@ const Chat = () => {
                     <View style={styles.headerCenter}>
                         <Text style={styles.headerText}>Kisan Dost</Text>
                         <Text style={styles.headerSubtext}>
-                            {languages.find(l => l.code === selectedLanguage)?.name || 'Hindi'}
+                            {/* {languages.find(l => l.code === selectedLanguage)?.name || 'English'} */}
+                            English
                         </Text>
                     </View>
                     <View style={styles.headerRight}>

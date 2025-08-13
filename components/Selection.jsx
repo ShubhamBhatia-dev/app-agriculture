@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
-const UserSelectionScreen = ({ navigation }) => {
+const UserSelectionScreen = ({ navigation, route }) => {
     const [selectedUser, setSelectedUser] = useState(null);
     const scaleValue = new Animated.Value(1);
 

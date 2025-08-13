@@ -1,1 +1,1 @@
-export const NETWORK = 'http://172.16.8.232:8000/'
+export const NETWORK = 'http://192.168.222.84:8000/'
