@@ -12,6 +12,8 @@ import Vendor from './components/Vendor';
 import Address from './components/Address';
 import PhoneAuthScreen from './components/Number';
 import UserSettings from './components/userSettings';
+import SellCrops from './components/SellCrops';
+import Talking from './components/Talking';
 
 
 const Stack = createNativeStackNavigator();
@@ -56,7 +58,8 @@ export default function App() {
           options={{ headerShown: false }}
         />
         <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} ></Stack.Screen>
-
+        <Stack.Screen name="SellCrops" component={SellCrops} options={{ headerShown: false }} ></Stack.Screen>
+        <Stack.Screen name="Talking" component={Talking} options={{ headerShown: false }} ></Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
   );

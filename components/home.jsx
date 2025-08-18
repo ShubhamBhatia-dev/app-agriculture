@@ -19,10 +19,11 @@ import ai from '../assets/ai.png';
 const { width, height } = Dimensions.get('window');
 
 const Home = ({ navigation }) => {
+    const [name, setName] = useState("USER")
     const [sidebarVisible, setSidebarVisible] = useState(false);
     const [sidebarAnimation] = useState(new Animated.Value(-width * 0.8));
     const [weatherData, setWeatherData] = useState({
-        location: 'Shimla, Himachal Pradesh',
+        location: 'kamand, Himachal Pradesh',
         temperature: '22°C',
         condition: 'Partly Cloudy',
         humidity: '65%',
@@ -85,7 +86,7 @@ const Home = ({ navigation }) => {
     useEffect(() => {
         const fetchWeatherData = () => {
             setWeatherData({
-                location: 'Shimla, Himachal Pradesh',
+                location: 'kamand, Himachal Pradesh',
                 temperature: '22°C',
                 condition: 'Partly Cloudy',
                 humidity: '65%',
@@ -93,7 +94,12 @@ const Home = ({ navigation }) => {
                 icon: '⛅'
             });
         };
-
+        const moyemoye = async () => {
+            const data = await AsyncStorage.getItem("userProfile");
+            const name = JSON.parse(data).name;
+            setName(String(name).toUpperCase())
+        }
+        moyemoye();
         fetchWeatherData();
     }, []);
 
@@ -114,10 +120,10 @@ const Home = ({ navigation }) => {
         },
         {
             id: 3,
-            title: 'Market Prices',
+            title: 'Sell Crops',
             subtitle: 'बाज़ार भाव',
             icon: '💰',
-            description: 'Latest market rates'
+            description: 'Connect with vendors'
         },
         {
             id: 4,
@@ -138,32 +144,20 @@ const Home = ({ navigation }) => {
         },
         {
             id: 2,
-            title: 'Language',
+            title: 'Sell Crops',
             subtitle: 'भाषा',
             icon: '🌐',
-            screen: 'LanguageSettings'
+            screen: 'SellCrops'
         },
         {
             id: 3,
-            title: 'Notifications',
+            title: 'My Orders',
             subtitle: 'सूचनाएं',
-            icon: '🔔',
-            screen: 'NotificationSettings'
-        },
-        {
-            id: 4,
-            title: 'Help & Support',
-            subtitle: 'सहायता',
-            icon: '❓',
-            screen: 'Help'
-        },
-        {
-            id: 5,
-            title: 'About',
-            subtitle: 'के बारे में',
-            icon: 'ℹ️',
-            screen: 'About'
+            icon: '📦',
+            screen: 'Talking'
         }
+
+
     ];
 
     return (
@@ -302,11 +296,11 @@ const Home = ({ navigation }) => {
                         <View style={styles.sidebarHeader}>
                             <View style={styles.sidebarProfileContainer}>
                                 <View style={styles.sidebarProfileImage}>
-                                    <Text style={styles.sidebarProfileInitials}>RS</Text>
+                                    <Text style={styles.sidebarProfileInitials}>{name.slice(0, 2)}</Text>
                                 </View>
                                 <View style={styles.sidebarProfileInfo}>
-                                    <Text style={styles.sidebarProfileName}>राम सिंह</Text>
-                                    <Text style={styles.sidebarProfileSubtitle}>Ram Singh</Text>
+                                    <Text style={styles.sidebarProfileName}>{name}</Text>
+                                    <Text style={styles.sidebarProfileSubtitle}>FARMER</Text>
                                 </View>
                             </View>
                             <TouchableOpacity

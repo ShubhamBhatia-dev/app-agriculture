@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { NETWORK } from './constants';
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,57 +40,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
     const sidebarAnimation = useRef(new Animated.Value(-width * 0.8)).current;
     const overlayAnimation = useRef(new Animated.Value(0)).current;
 
-    // Sample data
-    const sampleCrops = [
-        {
-            id: '1',
-            cropName: 'Wheat',
-            cropNameHindi: 'गेहूं',
-            farmerName: 'Rajesh Kumar',
-            price: 2050,
-            unit: 'per quintal',
-            quantity: 50,
-            state: 'Punjab',
-            district: 'Ludhiana',
-            quality: 'Grade A',
-            harvestDate: '2024-01-15',
-            contact: '9876543210',
-            description: 'High quality wheat, cultivated using organic farming methods.',
-            image: '🌾'
-        },
-        {
-            id: '2',
-            cropName: 'Rice',
-            cropNameHindi: 'चावल',
-            farmerName: 'Suresh Patel',
-            price: 2200,
-            unit: 'per quintal',
-            quantity: 30,
-            state: 'Haryana',
-            district: 'Karnal',
-            quality: 'Grade A+',
-            harvestDate: '2024-01-10',
-            contact: '9876543211',
-            description: 'Premium quality Basmati rice with long grains and excellent aroma.',
-            image: '🌾'
-        },
-        {
-            id: '3',
-            cropName: 'Maize',
-            cropNameHindi: 'मक्का',
-            farmerName: 'Anita Devi',
-            price: 1800,
-            unit: 'per quintal',
-            quantity: 100,
-            state: 'Uttar Pradesh',
-            district: 'Kanpur',
-            quality: 'Grade B',
-            harvestDate: '2023-12-25',
-            contact: '9876543212',
-            description: 'Good quality maize suitable for poultry feed and industrial use.',
-            image: '🌽'
-        },
-    ];
+
 
     const indianStates = [
         'All States', 'Andhra Pradesh', 'Bihar', 'Chhattisgarh', 'Gujarat',
@@ -147,8 +99,9 @@ const VendorMarketplaceScreen = ({ navigation }) => {
     const loadCrops = async () => {
         setIsLoading(true);
         try {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setCrops(sampleCrops);
+            const crops = await axios.get(`${NETWORK}app/farmer-crops/`);
+            console.log('Crops loaded:', crops.data);
+            setCrops(crops.data);
         } catch (error) {
             console.error('Error loading crops:', error);
             Alert.alert('Error', 'Failed to load crops. Please try again.');
@@ -167,17 +120,17 @@ const VendorMarketplaceScreen = ({ navigation }) => {
         let filtered = crops;
 
         if (selectedState !== 'All States') {
-            filtered = filtered.filter(crop => crop.state === selectedState);
+            filtered = filtered.filter(crop => String(crop.farmer.state).toLowerCase() === String(selectedState).toLowerCase());
         }
 
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(crop =>
-                crop.cropName.toLowerCase().includes(query) ||
-                crop.cropNameHindi.includes(query) ||
-                crop.farmerName.toLowerCase().includes(query) ||
-                crop.state.toLowerCase().includes(query) ||
-                crop.district.toLowerCase().includes(query)
+                crop.crop_name.toLowerCase().includes(query) ||
+
+                crop.farmer.name.toLowerCase().includes(query) ||
+                crop.farmer.state.toLowerCase().includes(query) ||
+                crop.farmer.district.toLowerCase().includes(query)
             );
         }
 
@@ -252,16 +205,27 @@ const VendorMarketplaceScreen = ({ navigation }) => {
 
     const handleMyOrders = () => {
         closeSidebar();
-        Alert.alert(
-            'My Orders',
-            'Orders screen will show your purchase history and current orders.',
-            [{ text: 'OK' }]
-        );
+        navigation.navigate('Talking');
+
     };
 
-    const handleBuyPress = (crop) => {
-        setSelectedCrop(crop);
-        setIsPurchaseModalVisible(true);
+    const handleBuyPress = async (farmer) => {
+
+        let vendor = await AsyncStorage.getItem("userProfile")
+        vendor = JSON.parse(vendor)
+        const response = await axios.get(`${NETWORK}app/chat-history`, {
+            params: {
+                farmer_name: farmer.name,
+                vendor_name: vendor.name,
+                farmer_phoneNumber: farmer.phone,
+                vendor_phoneNumber: vendor.phone
+
+            }
+        })
+        handleMyOrders();
+
+        console.log(response.data)
+
     };
 
     const confirmPurchase = async () => {
@@ -302,38 +266,38 @@ const VendorMarketplaceScreen = ({ navigation }) => {
                 <View style={styles.cropInfo}>
                     <Text style={styles.cropEmoji}>{crop.image}</Text>
                     <View style={styles.cropDetails}>
-                        <Text style={styles.cropName}>{crop.cropName}</Text>
-                        <Text style={styles.cropNameHindi}>{crop.cropNameHindi}</Text>
-                        <Text style={styles.qualityBadge}>{crop.quality}</Text>
+                        <Text style={styles.cropName}>{crop.crop_name}</Text>
+
+
                     </View>
                 </View>
                 <View style={styles.priceContainer}>
-                    <Text style={styles.price}>₹{crop.price.toLocaleString('en-IN')}</Text>
+                    <Text style={styles.price}>₹{crop.crop_price.toLocaleString('en-IN')}</Text>
                     <Text style={styles.unit}>{crop.unit}</Text>
                 </View>
             </View>
 
             <View style={styles.farmerInfo}>
                 <Text style={styles.farmerLabel}>👨‍🌾 Farmer:</Text>
-                <Text style={styles.farmerName}>{crop.farmerName}</Text>
+                <Text style={styles.farmerName}>{crop.farmer.name}</Text>
             </View>
 
             <View style={styles.locationInfo}>
-                <Text style={styles.locationText}>📍 {crop.district}, {crop.state}</Text>
-                <Text style={styles.quantityText}>📦 {crop.quantity} quintals available</Text>
+                <Text style={styles.locationText}>📍 {crop.farmer.district}, {crop.farmer.state}</Text>
+                <Text style={styles.quantityText}>📦 {crop.quantity} {crop.unit} </Text>
             </View>
 
             <Text style={styles.description}>{crop.description}</Text>
 
             <View style={styles.metaInfo}>
-                <Text style={styles.harvestDate}>🗓️ Harvested: {crop.harvestDate}</Text>
+                <Text style={styles.harvestDate}>🗓️ UPLOADED : {crop.created_at.slice(0, 10)}</Text>
             </View>
 
             <TouchableOpacity
                 style={styles.buyButton}
-                onPress={() => handleBuyPress(crop)}
+                onPress={() => handleBuyPress(crop.farmer)}
             >
-                <Text style={styles.buyButtonText}>🛒 BUY NOW</Text>
+                <Text style={styles.buyButtonText}>CHAT NOW</Text>
             </TouchableOpacity>
         </View>
     );
@@ -381,7 +345,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
                                 {userProfile?.userType === 'vendor' ? '🏪 Vendor' : '👨‍🌾 Farmer'}
                             </Text>
                             <Text style={styles.userPhone}>
-                                📱 {userProfile?.contact || 'N/A'}
+                                📱 {userProfile?.phone || 'N/A'}
                             </Text>
                         </View>
                     </View>
@@ -420,7 +384,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
 
                         <TouchableOpacity style={styles.menuItem} onPress={() => {
                             closeSidebar();
-                            Alert.alert('About Kisan Dost', 'Version 1.0.0\nYour Smart Farming Companion\n\n© 2024 Kisan Dost. All rights reserved.');
+                            Alert.alert('About Kisan Dost', 'Version 1.0.0\nYour Smart Farming Companion\n\n');
                         }}>
                             <Text style={styles.menuIcon}>ℹ️</Text>
                             <View style={styles.menuTextContainer}>
@@ -512,7 +476,7 @@ const VendorMarketplaceScreen = ({ navigation }) => {
                             </Text>
                             <Text style={styles.purchaseItem}>
                                 <Text style={styles.purchaseLabel}>Price: </Text>
-                                ₹{selectedCrop.price.toLocaleString('en-IN')} {selectedCrop.unit}
+                                ₹{selectedCrop.crop_price.toLocaleString('en-IN')} {selectedCrop.unit}
                             </Text>
                             <Text style={styles.purchaseItem}>
                                 <Text style={styles.purchaseLabel}>Available: </Text>

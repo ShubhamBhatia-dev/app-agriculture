@@ -16,8 +16,8 @@ import {
     Alert,
     Keyboard
 } from 'react-native';
-import Voice from '@react-native-voice/voice';
-import Tts from 'react-native-tts';
+
+
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NETWORK } from './constants'; // Adjust the import path as necessary
@@ -33,27 +33,27 @@ const Chat = () => {
     ]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [previousChats, setPreviousChats] = useState(null);
-    const [isListening, setIsListening] = useState(false);
-    const [isSpeaking, setIsSpeaking] = useState(false);
-    const [selectedLanguage, setSelectedLanguage] = useState('hi-IN');
+    const [selectedLanguage, setSelectedLanguage] = useState('hi');
     const [keyboardHeight, setKeyboardHeight] = useState(0);
     const scrollViewRef = useRef();
 
     // Language options for Indian languages
     const languages = [
-        { code: 'hi-IN', name: 'Hindi', ttsCode: 'hi' },
-        { code: 'pa-IN', name: 'Punjabi', ttsCode: 'pa' },
-        { code: 'bn-IN', name: 'Bengali', ttsCode: 'bn' },
-        { code: 'ta-IN', name: 'Tamil', ttsCode: 'ta' },
-        { code: 'te-IN', name: 'Telugu', ttsCode: 'te' },
-        { code: 'mr-IN', name: 'Marathi', ttsCode: 'mr' },
-        { code: 'gu-IN', name: 'Gujarati', ttsCode: 'gu' },
-        { code: 'kn-IN', name: 'Kannada', ttsCode: 'kn' },
-        { code: 'ml-IN', name: 'Malayalam', ttsCode: 'ml' },
-        { code: 'or-IN', name: 'Odia', ttsCode: 'or' }
+        { code: 'hi', name: 'Hindi', ttsCode: 'hi' },
+        { code: 'en', name: 'English', ttsCode: 'pa' },
+        { code: 'mr', name: 'Marathi', ttsCode: 'bn' },
+        { code: 'ta', name: 'Tamil', ttsCode: 'ta' },
+        { code: 'te', name: 'Telugu', ttsCode: 'te' },
+        { code: 'gu', name: 'Gujarati', ttsCode: 'gu' },
+        { code: 'kn', name: 'Kannada', ttsCode: 'kn' },
+        { code: 'pa', name: 'Punjabi', ttsCode: 'pa' }
+
     ];
 
     useEffect(() => {
+
+        // Start New Chat Eeverytime 
+        startNewChat();
 
         //   Function to fetch previous chats heading 
 
@@ -76,50 +76,24 @@ const Chat = () => {
             }
         }
         fetchPreviousChats();
+    }, [])
 
 
 
 
-        // Voice recognition setup
-        Voice.onSpeechResults = onSpeechResults;
-        Voice.onSpeechError = onSpeechError;
-        Voice.onSpeechEnd = () => setIsListening(false);
-
-        // TTS setup
-        Tts.addEventListener('tts-start', () => setIsSpeaking(true));
-        Tts.addEventListener('tts-finish', () => setIsSpeaking(false));
-        Tts.addEventListener('tts-cancel', () => setIsSpeaking(false));
-
-        // Keyboard listeners
-        const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
-            setKeyboardHeight(e.endCoordinates.height);
-        });
-        const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
-            setKeyboardHeight(0);
-        });
-
-        return () => {
-            Voice.destroy().then(Voice.removeAllListeners);
-            Tts.removeAllListeners('tts-start');
-            Tts.removeAllListeners('tts-finish');
-            Tts.removeAllListeners('tts-cancel');
-            keyboardDidShowListener?.remove();
-            keyboardDidHideListener?.remove();
-        };
-    }, []);
-
-
-    /// fetch Previous Chats on click 
 
     const openPrevChat = async (title) => {
         const api = `${NETWORK}app/ai/`;
         try {
-            const response = await axios.post(api, {
-                title: title,
-
+            const response = await axios.get(api, {
+                params: {
+                    title: title,
+                    phone: await AsyncStorage.getItem('userPhone')
+                }
             });
-            if (response.data) {
-                setMessages(response.data.content);
+            console.log("Previous chat response:", response.data);
+            if (response.data.success) {
+                setMessages(response.data.data.content);
                 setCurrentTitle(title);
                 setIsSidebarOpen(false);
                 console.log("Previous chat loaded successfully:", response.data.content);
@@ -161,7 +135,7 @@ const Chat = () => {
             // }
 
             let response = await axios.post(`${NETWORK}app/ai/`, {
-                ...data
+                ...data, language: selectedLanguage.toString()
             });
 
             if (response.data) {
@@ -185,121 +159,6 @@ const Chat = () => {
     };
 
 
-    const requestMicrophonePermission = async () => {
-        if (Platform.OS === 'android') {
-            try {
-                const granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-                    {
-                        title: 'Microphone Permission',
-                        message: 'This app needs access to microphone to use voice input.',
-                        buttonNeutral: 'Ask Me Later',
-                        buttonNegative: 'Cancel',
-                        buttonPositive: 'OK',
-                    }
-                );
-                return granted === PermissionsAndroid.RESULTS.GRANTED;
-            } catch (err) {
-                console.warn(err);
-                return false;
-            }
-        }
-        return true;
-    };
-
-    const startListening = async () => {
-        try {
-            const hasPermission = await requestMicrophonePermission();
-            if (!hasPermission) {
-                Alert.alert('Permission Required', 'Microphone permission is required for voice input.');
-                return;
-            }
-
-            setIsListening(true);
-            await Voice.start(selectedLanguage);
-        } catch (e) {
-            console.error('Voice start error:', e);
-            setIsListening(false);
-            Alert.alert('Error', 'Failed to start voice recognition');
-        }
-    };
-
-    const stopListening = async () => {
-        try {
-            await Voice.stop();
-            setIsListening(false);
-        } catch (e) {
-            console.error('Voice stop error:', e);
-        }
-    };
-
-    const onSpeechResults = async (event) => {
-        if (event.value && event.value.length > 0) {
-            const recognizedText = event.value[0];
-
-            try {
-                // If not English, translate to English
-                if (selectedLanguage !== 'en-US') {
-                    const res = await axios.get(
-                        `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(recognizedText)}`
-                    );
-                    const translated = res.data[0][0][0];
-                    setText(translated);
-                } else {
-                    setText(recognizedText);
-                }
-            } catch (err) {
-                console.log("Translation failed, using original text:", err);
-                setText(recognizedText);
-            }
-        }
-    };
-
-    const onSpeechError = (event) => {
-        console.error('Speech error:', event.error);
-        setIsListening(false);
-        if (event.error?.message) {
-            Alert.alert('Voice Error', event.error.message);
-        }
-    };
-
-    const speakMessage = async (message) => {
-        try {
-            if (isSpeaking) {
-                Tts.stop();
-                return;
-            }
-
-            const currentLang = languages.find(lang => lang.code === selectedLanguage);
-            const ttsLanguage = currentLang ? currentLang.ttsCode : 'en';
-
-            // Translate message to selected language if not English
-            let textToSpeak = message;
-            if (selectedLanguage !== 'en-US') {
-                try {
-                    const targetLang = currentLang?.ttsCode || 'hi';
-                    const res = await axios.get(
-                        `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(message)}`
-                    );
-                    textToSpeak = res.data[0][0][0];
-                } catch (err) {
-                    console.log("Translation for TTS failed:", err);
-                }
-            }
-
-            Tts.setDefaultLanguage(ttsLanguage);
-            Tts.setDefaultRate(0.8);
-            Tts.setDefaultPitch(1.0);
-            Tts.speak(textToSpeak);
-        } catch (error) {
-            console.error('TTS Error:', error);
-            Alert.alert('Error', 'Text-to-speech failed');
-        }
-    };
-
-
-
-
     const startNewChat = () => {
         setMessages([
             { id: '1', text: 'Hello! How can I help you with your farming today?', sender: 'ai' }
@@ -307,7 +166,7 @@ const Chat = () => {
         let date = new Date().toLocaleTimeString() + " " + new Date().toDateString()
 
 
-        setCurrentTitle('Kisan Dost ' + date);
+        setCurrentTitle('KISAN DOST ' + date);
         setIsSidebarOpen(false);
     };
 
@@ -324,20 +183,18 @@ const Chat = () => {
                         <TouchableOpacity style={styles.newChatButton} onPress={startNewChat}>
                             <Text style={styles.newChatButtonText}>+ New Chat</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.newChatButton} onPress={startNewChat}>
-                            <Text style={styles.newChatButtonText}>SELL CROPS</Text>
-                        </TouchableOpacity>
+
 
                         <Text style={styles.sectionHeader}>Language / भाषा</Text>
                         <ScrollView style={styles.languageList} showsVerticalScrollIndicator={false}>
-                            {languages.map((lang) => (
+                            {languages.map((lang, index) => (
                                 <TouchableOpacity
-                                    key={lang.code}
+                                    key={index}
                                     style={[
                                         styles.languageItem,
                                         selectedLanguage === lang.code && styles.selectedLanguage
                                     ]}
-                                    onPress={() => setSelectedLanguage(lang.code)}
+                                    onPress={() => { setSelectedLanguage(lang.code); setIsSidebarOpen(false) }}
                                 >
                                     <Text style={[
                                         styles.languageText,
@@ -352,7 +209,7 @@ const Chat = () => {
                         {
                             currentTitle ? (
                                 <View>
-                                    <Text style={styles.sectionHeader}>current Chat</Text>
+                                    <Text style={styles.sectionHeader}>Current Chat</Text>
                                     <TouchableOpacity>
                                         <Text>
                                             {currentTitle}
@@ -364,10 +221,10 @@ const Chat = () => {
 
                         <Text style={styles.sectionHeader}>Previous Chats</Text>
                         <ScrollView style={styles.chatHistoryList}>
-                            {(previousChats || []).map((chat, key) => (
-                                <TouchableOpacity key={key} style={styles.chatHistoryItem} onPress={() => openPrevChat(chat)}>
+                            {(previousChats || []).map((chat, index) => (
+                                <TouchableOpacity key={index} style={styles.chatHistoryItem} onPress={() => openPrevChat(chat)}>
                                     <Text style={styles.chatHistoryText}>{chat}</Text>
-                                    <Text style={styles.chatHistoryDate}>{chat}</Text>
+
                                 </TouchableOpacity>
                             ))}
                         </ScrollView>
@@ -388,16 +245,16 @@ const Chat = () => {
                     <View style={styles.headerCenter}>
                         <Text style={styles.headerText}>Kisan Dost</Text>
                         <Text style={styles.headerSubtext}>
-                            {/* {languages.find(l => l.code === selectedLanguage)?.name || 'English'} */}
-                            English
+                            {/* CODE FOR SHOWING CURRENT LANGUAGE */}
+                            {languages.find(l => l.code === selectedLanguage)?.name || 'Hindi'}
                         </Text>
                     </View>
                     <View style={styles.headerRight}>
-                        <TouchableOpacity onPress={() => Tts.stop()} disabled={!isSpeaking}>
+                        {/* <TouchableOpacity onPress={() => Tts.stop()} disabled={!isSpeaking}>
                             <Text style={[styles.speakerIcon, !isSpeaking && styles.disabledIcon]}>
-                                {isSpeaking ? '🔊' : '🔇'}
+                                {true ? '🔊' : '🔇'}
                             </Text>
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                     </View>
                 </View>
 
@@ -411,8 +268,8 @@ const Chat = () => {
                     ]}
                     showsVerticalScrollIndicator={false}
                 >
-                    {messages.map(msg => (
-                        <View key={msg.id} style={[
+                    {messages.map((msg, index) => (
+                        <View key={index} style={[
                             styles.messageBubble,
                             msg.sender === 'user' ? styles.userMessage : styles.aiMessage
                         ]}>
@@ -422,16 +279,7 @@ const Chat = () => {
                             ]}>
                                 {msg.text}
                             </Text>
-                            {msg.sender === 'ai' && (
-                                <TouchableOpacity
-                                    style={styles.speakButton}
-                                    onPress={() => speakMessage(msg.text)}
-                                >
-                                    <Text style={styles.speakButtonText}>
-                                        {isSpeaking ? '⏹️' : '🔊'}
-                                    </Text>
-                                </TouchableOpacity>
-                            )}
+
                         </View>
                     ))}
                 </ScrollView>
@@ -452,23 +300,12 @@ const Chat = () => {
                             blurOnSubmit={false}
                         />
                         <View style={styles.buttonContainer}>
-                            {text.trim().length > 0 ? (
-                                <TouchableOpacity onPress={handleSendMessage} style={styles.sendButton}>
-                                    <Text style={styles.buttonText}>Send</Text>
-                                </TouchableOpacity>
-                            ) : (
-                                <TouchableOpacity
-                                    onPress={isListening ? stopListening : startListening}
-                                    style={[
-                                        styles.voiceButton,
-                                        isListening && styles.listeningButton
-                                    ]}
-                                >
-                                    <Text style={styles.buttonText}>
-                                        {isListening ? "⏹️ Stop" : "🎙️ Speak"}
-                                    </Text>
-                                </TouchableOpacity>
-                            )}
+
+                            <TouchableOpacity onPress={handleSendMessage} style={styles.sendButton}>
+                                <Text style={styles.buttonText}>Send</Text>
+                            </TouchableOpacity>
+
+
                         </View>
                     </View>
                 </View>

@@ -1,1 +1,4 @@
-export const NETWORK = 'http://192.168.222.84:8000/'
+let NETWORK = 'http://localhost:8000/';
+let WS = 'localhost:8000';
+
+export { NETWORK, WS };

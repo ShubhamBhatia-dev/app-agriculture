@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Geolocation from 'react-native-geolocation-service';
 import axios from 'axios';
 import { NETWORK } from './constants';
 
@@ -50,7 +49,7 @@ const AddressPhoneScreen = ({ navigation, route }) => {
         district: '',
         country: 'India'
     });
-    const [currentLocation, setCurrentLocation] = useState(null);
+
     const [isLoadingLocation, setIsLoadingLocation] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [errors, setErrors] = useState({});
@@ -97,105 +96,10 @@ const AddressPhoneScreen = ({ navigation, route }) => {
         }
     };
 
-    const requestLocationPermission = async () => {
-        if (Platform.OS === 'android') {
-            try {
-                const granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-                    {
-                        title: 'Location Permission',
-                        message: 'This app needs access to location to help fill your address automatically.',
-                        buttonNeutral: 'Ask Me Later',
-                        buttonNegative: 'Cancel',
-                        buttonPositive: 'OK',
-                    }
-                );
-                return granted === PermissionsAndroid.RESULTS.GRANTED;
-            } catch (err) {
-                console.warn(err);
-                return false;
-            }
-        }
-        return true;
-    };
 
-    const getCurrentLocation = async () => {
-        const hasPermission = await requestLocationPermission();
-        if (!hasPermission) {
-            Alert.alert('Permission Required', 'Location permission is required to auto-fill address.');
-            return;
-        }
 
-        setIsLoadingLocation(true);
 
-        Geolocation.getCurrentPosition(
-            async (position) => {
-                const { latitude, longitude } = position.coords;
-                setCurrentLocation({ latitude, longitude });
-                await reverseGeocode(latitude, longitude);
-                setIsLoadingLocation(false);
-            },
-            (error) => {
-                console.error('Location error:', error);
-                setIsLoadingLocation(false);
-                Alert.alert(
-                    'Location Error',
-                    'Unable to get current location. Please enter address manually.'
-                );
-            },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-        );
-    };
 
-    const reverseGeocode = async (lat, lng) => {
-        try {
-            // Using OpenCage Geocoding API (free tier available)
-            // You can also use Google Maps Geocoding API with your API key
-            const response = await fetch(
-                `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=YOUR_OPENCAGE_API_KEY&language=en&pretty=1`
-            );
-
-            if (!response.ok) {
-                throw new Error('Geocoding failed');
-            }
-
-            const data = await response.json();
-
-            if (data.results && data.results.length > 0) {
-                const result = data.results[0];
-                const components = result.components;
-
-                setFormData(prev => ({
-                    ...prev,
-                    address: result.formatted || '',
-                    city: components.city || components.town || components.village || '',
-                    state: components.state || '',
-                    pincode: components.postcode || '',
-                    district: components.state_district || '',
-                    country: components.country || 'India'
-                }));
-                // Set debounced pincode as well
-                if (components.postcode) {
-                    setDebouncedPincode(components.postcode);
-                }
-
-                Alert.alert('Success', 'Address filled automatically!');
-            } else {
-                throw new Error('No address found');
-            }
-        } catch (error) {
-            console.error('Reverse geocoding error:', error);
-            // Fallback: Fill with basic location info
-            setFormData(prev => ({
-                ...prev,
-                address: `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`
-            }));
-            Alert.alert(
-                'Partial Success',
-                'Location detected but couldn\'t get full address. Please complete manually.'
-            );
-        }
-    };
 
     const validatePincode = async (pincode) => {
         if (pincode.length !== 6) return false;
@@ -384,18 +288,7 @@ const AddressPhoneScreen = ({ navigation, route }) => {
                     />
                     {/* Phone Number */}
 
-                    {/* Location Button */}
-                    <TouchableOpacity
-                        style={styles.locationButton}
-                        onPress={getCurrentLocation}
-                        disabled={isLoadingLocation}
-                    >
-                        {isLoadingLocation ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                            <Text style={styles.locationButtonText}>📍 Use Current Location</Text>
-                        )}
-                    </TouchableOpacity>
+
 
                     {/* Address */}
                     <InputField

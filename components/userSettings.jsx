@@ -15,10 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const UserSettings = ({ navigation }) => {
-    // User data state
-    //{"address": "Kamand Himachal Pradesh District Mandi 175075 ", "city": "Kamand", "country": "India",
-    //  "district": "Mandi", "name": "Geeks Randi", "phone": "9942534071", "pincode": "175075", "state": "Himachal Pradesh ", "userType": "farmer"}
-    //
 
 
 
