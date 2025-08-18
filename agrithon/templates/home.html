@@ -1,0 +1,148 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    
+
+    <title>Assistant UI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-black text-white min-h-screen flex flex-col">
+
+    <div id="sidebar"
+        class="fixed top-0 left-0 h-full w-64 bg-gray-900 transform -translate-x-full transition-transform duration-300 z-50 p-4">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">Chat History</h2>
+            <button onclick="toggleSidebar()" class="text-gray-400">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="flex flex-col gap-2 overflow-y-auto">
+            <button class="text-left bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded text-sm">Chat with Sarah</button>
+            <button class="text-left bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded text-sm">Project Planning</button>
+            <button class="text-left bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded text-sm">Marketing Ideas</button>
+            <button class="text-left bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded text-sm">Vacation Research</button>
+        </div>
+    </div>
+
+    <div id="overlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40" onclick="toggleSidebar()"></div>
+
+    <div class="flex flex-col justify-between flex-grow relative z-10">
+
+        <header class="flex items-center justify-between px-4 pt-3">
+            <button onclick="toggleSidebar()" class="text-white">
+                <svg class="h-6 w-6" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M3 12h18M3 6h18M3 18h18" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+            </button>
+            <button
+                class="flex items-center gap-1 bg-[#3B3B7B] rounded-full px-4 py-1 text-[#9CA3FF] text-base font-normal"
+                type="button">
+                <svg class="h-5 w-5 text-[#9CA3FF]" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M12 2a1 1 0 0 1 1 1v1.07a7.002 7.002 0 0 1 4.95 4.95H19a1 1 0 1 1 0 2h-1.07a7.002 7.002 0 0 1-4.95 4.95V19a1 1 0 1 1-2 0v-1.07a7.002 7.002 0 0 1-4.95-4.95H5a1 1 0 1 1 0-2h1.07a7.002 7.002 0 0 1 4.95-4.95V3a1 1 0 0 1 1-1zM12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z">
+                    </path>
+                </svg>
+                Get Plus
+            </button>
+            <div class="text-white">
+                <svg class="h-6 w-6" fill="none" stroke="white" stroke-dasharray="4 2" stroke-linecap="round"
+                    stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 8v4l3 3"></path>
+                </svg>
+            </div>
+        </header>
+
+        <main class="flex flex-col items-center justify-center flex-grow px-4 text-center space-y-6">
+            <h1 class="text-white text-2xl font-semibold">What can I help with?</h1>
+            <div class="flex flex-wrap justify-center gap-4 max-w-md">
+                <button
+                    class="flex items-center gap-2 border border-gray-700 rounded-full px-5 py-2 text-gray-400 font-semibold cursor-not-allowed"
+                    disabled>
+                    <svg class="h-5 w-5 text-green-600" fill="none" stroke="currentColor" stroke-width="2"
+                        viewBox="0 0 24 24">
+                        <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7M16 3v4M8 3v4m-5 4h18" stroke-linecap="round"
+                            stroke-linejoin="round"></path>
+                    </svg>
+                    Create image
+                </button>
+                <button
+                    class="flex items-center gap-2 border border-gray-700 rounded-full px-5 py-2 text-gray-400 font-semibold cursor-not-allowed"
+                    disabled>
+                    <svg class="h-5 w-5 text-sky-400" fill="none" stroke="currentColor" stroke-width="2"
+                        viewBox="0 0 24 24">
+                        <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"></path>
+                        <path d="M9 17v-6m4 6v-4m4 4v-2" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                    Analyze data
+                </button>
+            </div>
+            <div class="flex flex-wrap justify-center gap-4 max-w-xs">
+                <button
+                    class="flex items-center gap-2 border border-gray-700 rounded-full px-5 py-2 text-gray-400 font-semibold cursor-not-allowed"
+                    disabled>
+                    <svg class="h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" stroke-width="2"
+                        viewBox="0 0 24 24">
+                        <path
+                            d="M11 3a1 1 0 0 1 2 0v1a1 1 0 0 1-2 0V3zM12 7a5 5 0 0 0-5 5c0 2.21 1.79 4 4 4s4-1.79 4-4a5 5 0 0 0-3-4.58V7z"
+                            stroke-linecap="round" stroke-linejoin="round"></path>
+                        <path d="M12 14v7" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                    Make a plan
+                </button>
+            </div>
+        </main>
+
+        <footer class="flex items-center gap-3 px-4 pb-4">
+            <button aria-label="Upload image"
+                class="flex items-center justify-center w-12 h-12 rounded-full bg-gray-700 text-gray-400" type="button">
+                <img src="https://storage.googleapis.com/a1aa/image/218057cc-9eb4-46ba-36e7-f3ad92a6512a.jpg"
+                    alt="Upload" class="w-6 h-6" />
+            </button>
+            <input
+                class="flex-grow rounded-full bg-gray-700 text-gray-400 placeholder-gray-400 px-4 py-3 focus:outline-none"
+                placeholder="Ask anything" type="text" />
+            <button aria-label="Microphone" class="text-gray-400" type="button">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M12 1v11m0 0a3 3 0 0 0 3-3v-5a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z" stroke-linecap="round"
+                        stroke-linejoin="round"></path>
+                    <path d="M19 11v2a7 7 0 0 1-14 0v-2" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+            </button>
+            <button aria-label="Voice input"
+                class="flex items-center justify-center w-12 h-12 rounded-full bg-white text-black" type="button">
+                <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 14a2 2 0 0 0 2-2V7a2 2 0 0 0-4 0v5a2 2 0 0 0 2 2z"></path>
+                    <path clip-rule="evenodd" d="M5 10a1 1 0 1 1 2 0 5 5 0 0 0 10 0 1 1 0 1 1 2 0 7 7 0 0 1-14 0z"
+                        fill-rule="evenodd"></path>
+                </svg>
+            </button>
+        </footer>
+    </div>
+
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById("sidebar");
+            const overlay = document.getElementById("overlay");
+            sidebar.classList.toggle("-translate-x-full");
+            overlay.classList.toggle("hidden");
+        }
+    </script>
+
+</body>
+
+</html>
